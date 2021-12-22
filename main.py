@@ -1,17 +1,20 @@
 import threading
 import time
-from multiprocessing import Manager
-from multiprocessing.context import Process
-from multiprocessing.spawn import freeze_support
-
+import requests
+import wget
+import zipfile
+import os
+import requests
 import xlsxwriter
 import os
 
+from multiprocessing import Manager
+from multiprocessing.context import Process
+from multiprocessing.spawn import freeze_support
 from selenium import webdriver
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.chrome.options import Options
 from xlrd import open_workbook
-
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 
@@ -193,6 +196,22 @@ threadLocal = threading.local()
 
 
 def get_driver():
+    url = 'https://chromedriver.storage.googleapis.com/LATEST_RELEASE'
+    response = requests.get(url)
+    version_number = response.text
+
+    # build the donwload url
+    download_url = "https://chromedriver.storage.googleapis.com/" + version_number + "/chromedriver_win32.zip"
+
+    # download the zip file using the url built above
+    latest_driver_zip = wget.download(download_url, 'chromedriver.zip')
+
+    # extract the zip file
+    with zipfile.ZipFile(latest_driver_zip, 'r') as zip_ref:
+        zip_ref.extractall()  # you can specify the destination folder path here
+    # delete the zip file downloaded above
+    os.remove(latest_driver_zip)
+
     driver = getattr(threadLocal, 'driver', None)
     if driver is None:
         chrome_options = Options()
