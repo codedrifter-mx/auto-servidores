@@ -32,22 +32,23 @@ def automatizar_descargas():
         name = " ".join(str(sheet.row_values(row)[0]).upper().strip().split()).replace('/', ' ')
         columna_nombres.append(name)  # extract from zero col
 
-    lista_personas_no_encontradas = manager.list()  # <-- can be shared between processes.
-    lista_personas_encontradas = manager.list()  # <-- can be shared between processes.
+    lista_personas_no_encontradas = list()  # <-- can be shared between processes.
+    lista_personas_encontradas = list()  # <-- can be shared between processes.
 
-    nombres = chunkIt(columna_nombres,3)
-    # nombres = columna_nombres
+    # nombres = chunkIt(columna_nombres,3)
+    nombres = columna_nombres
 
 
     processes = []
 
     for nombre in nombres:
-        p = Process(target=descargar_archivos_persona,
-                    args=(nombre, lista_personas_no_encontradas, lista_personas_encontradas))  # Passing the list
-        p.start()
-        processes.append(p)
-    for p in processes:
-        p.join()
+        descargar_archivos_persona(nombres, lista_personas_no_encontradas, lista_personas_encontradas)
+        # p = Process(target=descargar_archivos_persona,
+        #             args=(nombre, lista_personas_no_encontradas, lista_personas_encontradas))  # Passing the list
+        # p.start()
+        # processes.append(p)
+    # for p in processes:
+    #     p.join()\
 
     with xlsxwriter.Workbook('NO_ENCONTRADAS.xlsx') as workbook:
         worksheet = workbook.add_worksheet()
