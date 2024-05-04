@@ -1,21 +1,20 @@
+import datetime
 from multiprocessing import Manager
 from multiprocessing.context import Process
 from multiprocessing.spawn import freeze_support
-
-from selenium import webdriver
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 import threading
-import zipfile
-import requests
-import wget
 import os
 import pandas as pd
 import time
 import re
 import PyPDF2
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 APP_PATH = os.path.dirname(os.path.realpath(__file__))
 CHROMEDRIVER_PATH = APP_PATH + "\\chromedriver.exe"
@@ -23,9 +22,7 @@ DOWNLOAD_PATH = APP_PATH + "\\declaraciones"
 
 threadLocal = threading.local()
 
-
 def main_workflow(num_proc):
-    # Load the Excel file into a pandas dataframe
     names_df = pd.read_excel('seed.xlsx')
 
     # Extract the data from the first column and convert it to a list
@@ -53,6 +50,7 @@ def main_workflow(num_proc):
                     args=(names_chunk, not_founded, founded, founded_name, founded_email, founded_phone, founded_ext))
         p.start()
         processes.append(p)
+
     for p in processes:
         p.join()
 
@@ -68,30 +66,18 @@ def main_workflow(num_proc):
     not_founded_df = pd.DataFrame(list(not_founded), columns=['RFC'])
     founded_df = pd.DataFrame(list(founded), columns=['RFC'])
 
-    founded_df['Nombre'] = list(founded_name)
-    founded_df['Email'] = list(founded_email)
-    founded_df['Tel'] = list(founded_phone)
-    founded_df['Ext'] = list(founded_phone)
-
+    # Save data to Excel
     not_founded_df.to_excel('NO_ENCONTRADAS.xlsx', index=False)
     founded_df.to_excel('ENCONTRADAS.xlsx', index=False)
 
-    print("+++++ Fin del flujo de trabajo")
+    print("Workflow completed.")
 
 
 def sub_workflow(names, not_founded, founded, founded_name, founded_email, founded_phone, founded_ext):
     driver = get_driver()
-
     for fullname in names:
         try:
             driver.get("https://servidorespublicos.gob.mx")
-
-            # WebDriverWait(driver, 5).until(expected_conditions.element_to_be_clickable(
-            #     (By.XPATH, "/html/body/app-root/app-busqueda/div/div[4]/div/div/div[3]/button")))
-            #
-            # button_aviso = driver.find_element_by_xpath(
-            #     "/html/body/app-root/app-busqueda/div/div[4]/div/div/div[3]/button")
-            # driver.execute_script("arguments[0].click();", button_aviso)
 
             WebDriverWait(driver, 5).until(expected_conditions.visibility_of_element_located(
                 (By.NAME, "nombre")))
@@ -113,16 +99,6 @@ def sub_workflow(names, not_founded, founded, founded_name, founded_email, found
         try:
             WebDriverWait(driver, 4).until(expected_conditions.visibility_of_element_located(
                 (By.XPATH, "/html/body/app-root/app-busqueda/div/div[4]/div/table/tbody/tr/td[1]")))
-
-            # institutes_list = driver.find_elements(By.XPATH,
-            #                                        '/html/body/app-root/app-busqueda/div/div[4]/div/table/tbody/tr/td[2]')
-            #
-            # xpath_selected = ""
-
-            # for index, institute in enumerate(institutes_list):
-            #     if institute.text.upper() == "INSTITUTO MEXICANO DEL SEGURO SOCIAL" or institute.text == "Instituto Mexicano del Seguro Social":
-            #         xpath_selected = "/html/body/app-root/app-busqueda/div/div[4]/div/table/tbody/tr[" + str(
-            #             index + 1) + "]/td[1]/a"
 
             xpath_selected = "/html/body/app-root/app-busqueda/div/div[4]/div/table/tbody/tr[1]/td[1]/a"
 
@@ -150,7 +126,12 @@ def sub_workflow(names, not_founded, founded, founded_name, founded_email, found
             is_showed = False
             # Recorrer textos pero con su indice, para saber cual boton
             for index, texto in enumerate(textos_persona):
-                if texto.text == "MODIFICACIÓN 2023":
+                # Get the current year
+                current_year = datetime.datetime.now().year
+
+                # Create the string with the current year
+                search_string = f"MODIFICACIÓN {current_year}"
+                if texto.text == search_string:
                     is_showed = True
 
                     xpath_download_btn = "/html/body/app-root/app-declaraciones/div[3]/div/table/tbody/tr[" + str(
@@ -160,29 +141,13 @@ def sub_workflow(names, not_founded, founded, founded_name, founded_email, found
                         index + 1) + "]/td[3]"
 
                     break
-
-            # if is_showed:
-            #     # Cambio direccion de descarga del chromedrive con el nombre de la persona
-            #     download_dir_temp = DOWNLOAD_PATH + "\\" + fullname
-            #     driver.command_executor._commands["send_command"] = (
-            #         "POST", '/session/$sessionId/chromium/send_command')
-            #     params = {'cmd': 'Page.setDownloadBehavior',
-            #               'params': {'behavior': 'allow', 'downloadPath': download_dir_temp}}
-            #     driver.execute("send_command", params)
-            #
-            #     # Localizo boton documento con xpath
-            #     btn_download_file = driver.find_element(By.XPATH, xpath_download_btn)
-            #     driver.execute_script("arguments[0].click();", btn_download_file)
-            #
-            # else:
-            #     not_founded.append(fullname)
-            #     print("-- " + fullname + " no MODIFICACIÓN 2023")
-            #     continue
+            if not xpath_download_btn or not xpath_no_comprobante:
+                raise Exception("Required elements not found on the page.")
 
         except Exception as e:
             not_founded.append(fullname)
             print("-- Archivo de " + fullname + " no encontrado")
-            print(e)
+            # print(e)
             continue
 
         try:
@@ -310,50 +275,41 @@ def chunkList(list, num):
     return out
 
 
+
+
 def get_driver():
-    url = 'https://chromedriver.storage.googleapis.com/LATEST_RELEASE'
-    response = requests.get(url)
-    version_number = response.text
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_experimental_option('prefs', {
+        "download.default_directory": DOWNLOAD_PATH,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing_for_trusted_sources_enabled": False,
+        "safebrowsing.enabled": False,
+        'profile.default_content_setting_values.automatic_downloads': 1
+    })
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument("--headless")
 
-    # build the donwload url
-    download_url = "https://chromedriver.storage.googleapis.com/" + version_number + "/chromedriver_win32.zip"
-    # download the zip file using the url built above
-    latest_driver_zip = wget.download(download_url, 'chromedriver.zip')
-
-    # extract the zip file
     try:
-        with zipfile.ZipFile(latest_driver_zip, 'r') as zip_ref:
-            zip_ref.extractall()  # you can specify the destination folder path here
-    except:
-        print('chromedriver.exe is in use, omitted .zip extraction')
-    os.remove(latest_driver_zip)  # delete the zip file downloaded above
-
-    # prepare Object for MultiProcess
-    driver = getattr(threadLocal, 'driver', None)
-
-    # Set config once
-    if driver is None:
-        chrome_options = Options()
-        chrome_options.add_experimental_option('prefs', {
-            "download.default_directory": DOWNLOAD_PATH,
-            "download.prompt_for_download": False,
-            "download.directory_upgrade": True,
-            "safebrowsing_for_trusted_sources_enabled": False,
-            "safebrowsing.enabled": False,
-            'profile.default_content_setting_values.automatic_downloads': 1
-        })
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument("--headless")
-
-        driver = webdriver.Chrome(options=chrome_options, executable_path=CHROMEDRIVER_PATH)
-
-    return driver
+        # Specify a path with write permissions
+        service = Service(ChromeDriverManager().install())
+        driverobj = webdriver.Chrome(service=service, options=chrome_options)
+        return driverobj
+    except Exception as e:
+        print("Failed to initialize the Chrome driver:", str(e))
+        return None
 
 
 if __name__ == '__main__':
-    # This is needed for MultiProcesses
-    freeze_support()
-    manager = Manager()
+    driver = get_driver()
+    if driver:
+        try:
+            freeze_support()
+            manager = Manager()
 
-    # let's go
-    main_workflow(16)
+            # let's go
+            main_workflow(1)
+            pass
+        finally:
+            driver.quit()
