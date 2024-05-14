@@ -15,9 +15,7 @@ A python script with selenium (Chrome) that download and verify public servants 
 pip install -r requirements.txt
 `
 
-2.- Update Chrome browser to latest, You can update Chrome from the browser's settings menu under Help > About Google Chrome.
-
-3.- Set a "seed.xlsx" in project files, 1st column should be "Nombres", 2nd should be "RFC"
+3.- Set a your seed Excel files inside of /seed folder, 1st column should be "Nombres", 2nd should be "RFC", otherwise will fail
 
 4.- Run:
 `
