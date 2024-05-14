@@ -10,14 +10,14 @@ A python script with selenium (Chrome) that download and verify public servants 
 
 ## Use this script
 
-1.- Install libraries:
+1. Install libraries:
 `
 pip install -r requirements.txt
 `
 
-3.- Set a your seed Excel files inside of /seed folder, 1st column should be "Nombres", 2nd should be "RFC", otherwise will fail
+2. Set a your seed Excel files inside of /seed folder, 1st column should be "Nombres", 2nd should be "RFC", otherwise will fail
 
-4.- Run:
+3. Run:
 `
 python .\main.py 
 `
