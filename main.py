@@ -66,7 +66,7 @@ def main(seed_filename):
     results = []
 
     # Process each person in the list concurrently
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    with ThreadPoolExecutor(max_workers=35) as executor:
         futures = [executor.submit(process_person_data, row.iloc[0].upper().strip().replace('/', ' '), row.iloc[1],
                                    collName=100) for index, row in names_df.iterrows()]
         for future in as_completed(futures):
