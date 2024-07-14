@@ -44,7 +44,7 @@ def generate_sha3_digest(declaracion):
 def process_person_data(name, rfc, collName):
     try:
         session = setup_session()
-        person_result = search_person(session, name, collName)
+        person_result = search_person(session, rfc, collName)
         if person_result and person_result['estatus'] and person_result['datos']:
             person_data = person_result['datos'][0]
             declaration_result = get_declaration_history(session, person_data['idUsrDecnet'], collName)
@@ -66,7 +66,7 @@ def main(seed_filename):
     results = []
 
     # Process each person in the list concurrently
-    with ThreadPoolExecutor(max_workers=35) as executor:
+    with ThreadPoolExecutor(max_workers=100) as executor:
         futures = [executor.submit(process_person_data, row.iloc[0].upper().strip().replace('/', ' '), row.iloc[1],
                                    collName=100) for index, row in names_df.iterrows()]
         for future in as_completed(futures):
