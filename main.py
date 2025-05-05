@@ -19,7 +19,7 @@ def setup_session():
 
 
 def search_person(session, name, collName):
-    url = f'https://servicios.dn.funcionpublica.gob.mx/declaranet/consulta-servidores-publicos/buscarsp?busqueda={name}&collName={collName}'
+    url = f'https://servicios.dkla8prod.funcionpublica.gob.mx/declaranet/consulta-servidores-publicos/buscarsp?busqueda={name}&collName={collName}'
     response = session.post(url)
     if response.status_code != 200:
         return None
@@ -27,7 +27,7 @@ def search_person(session, name, collName):
 
 
 def get_declaration_history(session, idUsrDecnet, collName):
-    url = f'https://servicios.dn.funcionpublica.gob.mx/declaranet/consulta-servidores-publicos/historico?idUsrDecnet={idUsrDecnet}&collName={collName}'
+    url = f'https://servicios.dkla8prod.funcionpublica.gob.mx/declaranet/consulta-servidores-publicos/historico?idUsrDecnet={idUsrDecnet}&collName={collName}'
     response = session.post(url)
     if response.status_code != 200:
         return None
@@ -50,12 +50,15 @@ def process_person_data(name, rfc, collName):
             declaration_result = get_declaration_history(session, person_data['idUsrDecnet'], collName)
             if declaration_result:
                 for declaration in declaration_result['datos']:
-                    if (declaration['anio'] == 2024 and declaration['tipoDeclaracion'] == 'MODIFICACION' and
+                    if (declaration['anio'] == 2025 and declaration['tipoDeclaracion'] == 'MODIFICACION' and
                             declaration['institucionReceptora'] == 'INSTITUTO MEXICANO DEL SEGURO SOCIAL'):
+                        # logging.info(name + " YES Found")
                         return {'Name': name, 'RFC': rfc, 'noComprobante': declaration['noComprobante'],
                                 'Status': 'Found'}
+        # logging.info(name + " NOT Found")
         return {'Name': name, 'RFC': rfc, 'Status': 'Not found'}
     except:
+        # logging.info(name + " exp Found")
         return {'Name': name, 'RFC': rfc, 'Status': 'Not found'}
         pass
 
