@@ -92,7 +92,7 @@ class App(ctk.CTk):
         self._build_main()
         self._setup_logging()
         self._refresh_seed_list()
-        self._apply_recommended_settings()
+        self._load_config_to_sliders()
 
     def _build_sidebar(self):
         side = ctk.CTkFrame(self, width=300, fg_color=("gray90", "gray20"))
@@ -303,6 +303,18 @@ class App(ctk.CTk):
 
         self._append_log(f"Auto-configured: batch_size={batch}, max_workers={workers} (based on {self.specs['cpu_cores']} cores, {self.specs['ram_gb']} GB RAM)")
 
+    def _load_config_to_sliders(self):
+        try:
+            config = ConfigManager.load()
+            batch = config["processing"]["batch_size"]
+            workers = config["processing"]["max_workers"]
+            self.slider_batch.set(batch)
+            self.slider_worker.set(workers)
+            self.lbl_batch_val.configure(text=str(batch))
+            self.lbl_worker_val.configure(text=str(workers))
+        except Exception:
+            pass
+
     def _save_config(self):
         try:
             config = ConfigManager.load()
@@ -454,6 +466,37 @@ class App(ctk.CTk):
         if not files:
             messagebox.showwarning("No Files", "Please add some seed .xlsx files before starting.")
             return
+
+        # Check for stale checkpoint
+        from checkpoint import Checkpoint
+        cp = Checkpoint()
+        total_rows = 0
+        already_processed = 0
+        for fname in files:
+            fpath = os.path.join(SEED_DIR, fname)
+            try:
+                df = pd.read_excel(fpath)
+                total_rows += len(df)
+                for _, row in df.iterrows():
+                    rfc = str(row.iloc[1]) if len(row) > 1 else ""
+                    if cp.is_processed(rfc):
+                        already_processed += 1
+            except Exception:
+                pass
+
+        if total_rows > 0 and already_processed / total_rows > 0.5:
+            if not messagebox.askyesno(
+                "Stale Checkpoint Detected",
+                f"{already_processed} of {total_rows} records appear to be already processed from a previous run.\n\n"
+                "This will result in 0 new records being processed.\n\n"
+                "Do you want to CLEAR the checkpoint and start fresh?\n\n"
+                "(Click Yes to clear, No to continue with existing checkpoint)"
+            ):
+                return
+            cp_path = ".checkpoint/state.json"
+            if os.path.exists(cp_path):
+                os.remove(cp_path)
+            self._append_log("Checkpoint cleared due to stale data.")
 
         # Sync slider values to config before running
         try:

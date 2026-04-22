@@ -46,6 +46,9 @@ class Orchestrator:
 
             for file_info in files:
                 self.checkpoint.set_current_file(file_info["filename"])
+                # Reset per-file result lists to avoid cross-file contamination
+                self.checkpoint._found = []
+                self.checkpoint._not_found = []
                 msg = f"Processing: {file_info['filename']} ({file_info['row_count']} rows)"
                 if on_log: on_log(msg)
                 else: logging.info(msg)
