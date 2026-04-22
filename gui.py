@@ -56,7 +56,7 @@ class SystemInfo:
         ram = specs["ram_gb"]
 
         # Heuristic: more cores + more RAM = more aggressive concurrency
-        max_workers = min(cores * 6, 300)
+        max_workers = min(cores * 6, 200)
         if ram < 8:
             batch_size = 25
             max_workers = min(max_workers, 50)
@@ -68,7 +68,7 @@ class SystemInfo:
             max_workers = min(max_workers, 150)
         else:
             batch_size = 100
-            max_workers = min(max_workers, 300)
+            max_workers = min(max_workers, 200)
 
         return {"batch_size": batch_size, "max_workers": max_workers}
 
@@ -93,6 +93,7 @@ class App(ctk.CTk):
         self._setup_logging()
         self._refresh_seed_list()
         self._load_config_to_sliders()
+        self._apply_recommended_settings()
 
     def _build_sidebar(self):
         side = ctk.CTkFrame(self, width=300, fg_color=("gray90", "gray20"))
@@ -100,7 +101,7 @@ class App(ctk.CTk):
         side.grid_rowconfigure(4, weight=1)
         side.grid_columnconfigure(0, weight=1)
 
-        title = ctk.CTkLabel(side, text="Seed Files", font=ctk.CTkFont(size=16, weight="bold"))
+        title = ctk.CTkLabel(side, text="Archivos de Origen", font=ctk.CTkFont(size=16, weight="bold"))
         title.grid(row=0, column=0, padx=12, pady=(12, 4), sticky="w")
 
         # System Info Card
@@ -108,43 +109,42 @@ class App(ctk.CTk):
         sys_frame.grid(row=1, column=0, padx=10, pady=4, sticky="ew")
         sys_frame.grid_columnconfigure(0, weight=1)
 
-        sys_title = ctk.CTkLabel(sys_frame, text="System Info", font=ctk.CTkFont(size=12, weight="bold"))
+        sys_title = ctk.CTkLabel(sys_frame, text="Info del Sistema", font=ctk.CTkFont(size=12, weight="bold"))
         sys_title.grid(row=0, column=0, padx=8, pady=(8, 2), sticky="w")
 
-        self.lbl_cpu = ctk.CTkLabel(sys_frame, text=f"CPU: {self.specs['cpu_cores']} cores", font=ctk.CTkFont(size=11))
+        self.lbl_cpu = ctk.CTkLabel(sys_frame, text=f"CPU: {self.specs['cpu_cores']} núcleos", font=ctk.CTkFont(size=11))
         self.lbl_cpu.grid(row=1, column=0, padx=8, sticky="w")
 
         self.lbl_ram = ctk.CTkLabel(sys_frame, text=f"RAM: {self.specs['ram_gb']} GB", font=ctk.CTkFont(size=11))
-        self.lbl_ram.grid(row=2, column=0, padx=8, sticky="w")
-
-        self.lbl_os = ctk.CTkLabel(sys_frame, text=f"OS: {self.specs['os']}", font=ctk.CTkFont(size=11))
-        self.lbl_os.grid(row=3, column=0, padx=8, pady=(0, 8), sticky="w")
+        self.lbl_ram.grid(row=2, column=0, padx=8, pady=(0, 8), sticky="w")
 
         # Excel Format Hint
         fmt_frame = ctk.CTkFrame(side, fg_color=("gray80", "gray25"))
         fmt_frame.grid(row=2, column=0, padx=10, pady=4, sticky="ew")
         fmt_frame.grid_columnconfigure(0, weight=1)
 
-        fmt_title = ctk.CTkLabel(fmt_frame, text="Excel Format", font=ctk.CTkFont(size=12, weight="bold"))
+        fmt_title = ctk.CTkLabel(fmt_frame, text="Formato Excel", font=ctk.CTkFont(size=12, weight="bold"))
         fmt_title.grid(row=0, column=0, padx=8, pady=(8, 2), sticky="w")
 
-        fmt_hint = ctk.CTkLabel(
-            fmt_frame,
-            text="Col A: Nombres (name)\nCol B: RFC\nNo header row needed.\nFirst row = first person.",
-            font=ctk.CTkFont(size=11),
-            text_color=("gray30", "gray70"),
-            justify="left",
-        )
-        fmt_hint.grid(row=1, column=0, padx=8, pady=(0, 8), sticky="w")
+        # Mini spreadsheet visual
+        tbl = ctk.CTkFrame(fmt_frame, fg_color=("gray70", "gray35"))
+        tbl.grid(row=1, column=0, padx=8, pady=(0, 8), sticky="w")
+        tbl.grid_columnconfigure((0, 1), weight=1)
 
-        sample_btn = ctk.CTkButton(
-            fmt_frame, text="Download Sample", width=120, height=24,
-            font=ctk.CTkFont(size=11),
-            command=self._download_sample
-        )
-        sample_btn.grid(row=2, column=0, padx=8, pady=(0, 8), sticky="w")
+        hdr_a = ctk.CTkLabel(tbl, text=" A ", font=ctk.CTkFont(size=10, weight="bold"), fg_color=("gray60", "gray45"), text_color="white", width=110)
+        hdr_a.grid(row=0, column=0, padx=(1, 0), pady=(1, 0), sticky="w")
+        hdr_b = ctk.CTkLabel(tbl, text=" B ", font=ctk.CTkFont(size=10, weight="bold"), fg_color=("gray60", "gray45"), text_color="white", width=90)
+        hdr_b.grid(row=0, column=1, padx=(0, 1), pady=(1, 0), sticky="w")
 
-        self.btn_add = ctk.CTkButton(side, text="Add File", height=32, command=self._add_file)
+        ctk.CTkLabel(tbl, text="JUAN PEREZ GARCIA", font=ctk.CTkFont(size=10), fg_color=("gray90", "gray25"), width=110).grid(row=1, column=0, padx=(1, 0), pady=(0, 1), sticky="w")
+        ctk.CTkLabel(tbl, text="BEGX123456X01", font=ctk.CTkFont(size=10), fg_color=("gray90", "gray25"), width=90).grid(row=1, column=1, padx=(0, 1), pady=(0, 1), sticky="w")
+        ctk.CTkLabel(tbl, text="MARIA LOPEZ HDEZ", font=ctk.CTkFont(size=10), fg_color=("white", "gray20"), width=110).grid(row=2, column=0, padx=(1, 0), pady=(0, 1), sticky="w")
+        ctk.CTkLabel(tbl, text="BEGX654321X02", font=ctk.CTkFont(size=10), fg_color=("white", "gray20"), width=90).grid(row=2, column=1, padx=(0, 1), pady=(0, 1), sticky="w")
+
+        hint = ctk.CTkLabel(fmt_frame, text="Sin fila de encabezado. Primera fila = primera persona.", font=ctk.CTkFont(size=10), text_color=("gray30", "gray70"))
+        hint.grid(row=2, column=0, padx=8, pady=(0, 8), sticky="w")
+
+        self.btn_add = ctk.CTkButton(side, text="Agregar Archivo", height=32, command=self._add_file)
         self.btn_add.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
 
         self.seed_listbox = ctk.CTkScrollableFrame(side, fg_color="transparent")
@@ -158,8 +158,8 @@ class App(ctk.CTk):
         self.tabview.grid_columnconfigure(0, weight=1)
         self.tabview.grid_rowconfigure(0, weight=1)
 
-        self.tab_proc = self.tabview.add("Processing")
-        self.tab_settings = self.tabview.add("Advanced Settings")
+        self.tab_proc = self.tabview.add("Procesamiento")
+        self.tab_settings = self.tabview.add("Configuración Avanzada")
 
         self._build_processing_tab()
         self._build_settings_tab()
@@ -176,7 +176,7 @@ class App(ctk.CTk):
         # Batch Size Slider
         batch_frame = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
         batch_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        ctk.CTkLabel(batch_frame, text="Batch Size", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(batch_frame, text="Tamaño de Lote", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
         self.lbl_batch_val = ctk.CTkLabel(batch_frame, text="50", font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_batch_val.pack(anchor="w")
         self.slider_batch = ctk.CTkSlider(batch_frame, from_=10, to=200, number_of_steps=19, command=self._on_batch_change)
@@ -186,10 +186,10 @@ class App(ctk.CTk):
         # Max Workers Slider
         worker_frame = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
         worker_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
-        ctk.CTkLabel(worker_frame, text="Max Workers", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(worker_frame, text="Trabajadores Máx.", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
         self.lbl_worker_val = ctk.CTkLabel(worker_frame, text="100", font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_worker_val.pack(anchor="w")
-        self.slider_worker = ctk.CTkSlider(worker_frame, from_=10, to=500, number_of_steps=49, command=self._on_worker_change)
+        self.slider_worker = ctk.CTkSlider(worker_frame, from_=10, to=200, number_of_steps=19, command=self._on_worker_change)
         self.slider_worker.pack(fill="x", pady=(5, 0))
         self.slider_worker.set(100)
 
@@ -198,21 +198,14 @@ class App(ctk.CTk):
         action_frame.grid(row=0, column=2, padx=10, pady=10, sticky="nsew")
 
         self.btn_auto = ctk.CTkButton(
-            action_frame, text="Auto-Configure", height=28,
+            action_frame, text="Auto-Configurar", height=28,
             command=self._apply_recommended_settings,
             fg_color="gray40", hover_color="gray30"
         )
         self.btn_auto.pack(fill="x", pady=(0, 5))
 
-        self.btn_clear_checkpoint = ctk.CTkButton(
-            action_frame, text="Clear Checkpoint", height=28,
-            command=self._clear_checkpoint,
-            fg_color="gray40", hover_color="gray30"
-        )
-        self.btn_clear_checkpoint.pack(fill="x", pady=(0, 5))
-
         self.btn_start = ctk.CTkButton(
-            action_frame, text="Start Processing", height=40,
+            action_frame, text="Iniciar Procesamiento", height=40,
             command=self._toggle_run, font=ctk.CTkFont(weight="bold")
         )
         self.btn_start.pack(fill="x")
@@ -236,7 +229,7 @@ class App(ctk.CTk):
         self.progress.set(0)
         self.progress.grid(row=0, column=0, sticky="ew")
 
-        self.status_label = ctk.CTkLabel(status_frame, text="Ready", font=ctk.CTkFont(size=12))
+        self.status_label = ctk.CTkLabel(status_frame, text="Listo", font=ctk.CTkFont(size=12))
         self.status_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
 
     def _build_settings_tab(self):
@@ -248,30 +241,21 @@ class App(ctk.CTk):
         # API Section
         api_frame = ctk.CTkFrame(container)
         api_frame.pack(fill="x", pady=(0, 15))
-        ctk.CTkLabel(api_frame, text="API Settings", font=ctk.CTkFont(weight="bold")).pack(padx=10, pady=5, anchor="w")
+        ctk.CTkLabel(api_frame, text="Configuración API", font=ctk.CTkFont(weight="bold")).pack(padx=10, pady=5, anchor="w")
 
-        self.ent_base_url = self._create_setting_row(api_frame, "Base URL:", config["api"]["base_url"])
-        self.ent_coll_name = self._create_setting_row(api_frame, "Collection ID:", str(config["api"]["default_coll_name"]))
-
-        # Cache Section
-        cache_frame = ctk.CTkFrame(container)
-        cache_frame.pack(fill="x", pady=(0, 15))
-        ctk.CTkLabel(cache_frame, text="Cache Settings", font=ctk.CTkFont(weight="bold")).pack(padx=10, pady=5, anchor="w")
-
-        self.sw_cache_enabled = ctk.CTkSwitch(cache_frame, text="Enable Cache")
-        self.sw_cache_enabled.pack(padx=10, pady=5, anchor="w")
-        self.sw_cache_enabled.select() if config["cache"]["enabled"] else self.sw_cache_enabled.deselect()
+        self.ent_base_url = self._create_setting_row(api_frame, "URL Base:", config["api"]["base_url"])
+        self.ent_coll_name = self._create_setting_row(api_frame, "ID de Colección:", str(config["api"]["default_coll_name"]))
 
         # Filters Section
         filt_frame = ctk.CTkFrame(container)
         filt_frame.pack(fill="x", pady=(0, 15))
-        ctk.CTkLabel(filt_frame, text="Filter Settings", font=ctk.CTkFont(weight="bold")).pack(padx=10, pady=5, anchor="w")
+        ctk.CTkLabel(filt_frame, text="Configuración de Filtros", font=ctk.CTkFont(weight="bold")).pack(padx=10, pady=5, anchor="w")
 
         years_str = ",".join(map(str, config["filters"]["years_to_check"]))
-        self.ent_years = self._create_setting_row(filt_frame, "Years (comma separated):", years_str)
+        self.ent_years = self._create_setting_row(filt_frame, "Años (separados por coma):", years_str)
 
         # Save Button
-        self.btn_save_config = ctk.CTkButton(container, text="Save Settings", command=self._save_config, fg_color="green", hover_color="darkgreen")
+        self.btn_save_config = ctk.CTkButton(container, text="Guardar Configuración", command=self._save_config, fg_color="green", hover_color="darkgreen")
         self.btn_save_config.pack(pady=20)
 
     def _create_setting_row(self, parent, label, value):
@@ -301,7 +285,7 @@ class App(ctk.CTk):
         self.lbl_batch_val.configure(text=str(batch))
         self.lbl_worker_val.configure(text=str(workers))
 
-        self._append_log(f"Auto-configured: batch_size={batch}, max_workers={workers} (based on {self.specs['cpu_cores']} cores, {self.specs['ram_gb']} GB RAM)")
+        self._append_log(f"Auto-configurado: batch_size={batch}, max_workers={workers} (basado en {self.specs['cpu_cores']} núcleos, {self.specs['ram_gb']} GB RAM)")
 
     def _load_config_to_sliders(self):
         try:
@@ -320,7 +304,6 @@ class App(ctk.CTk):
             config = ConfigManager.load()
             config["api"]["base_url"] = self.ent_base_url.get()
             config["api"]["default_coll_name"] = int(self.ent_coll_name.get())
-            config["cache"]["enabled"] = self.sw_cache_enabled.get()
             config["filters"]["years_to_check"] = [int(x.strip()) for x in self.ent_years.get().split(",") if x.strip()]
 
             # Also save slider values
@@ -328,11 +311,11 @@ class App(ctk.CTk):
             config["processing"]["max_workers"] = int(self.slider_worker.get())
 
             ConfigManager.save(config)
-            messagebox.showinfo("Success", "Settings saved successfully!")
+            messagebox.showinfo("Éxito", "¡Configuración guardada exitosamente!")
         except ValueError as e:
-            messagebox.showerror("Error", f"Invalid input: {e}")
+            messagebox.showerror("Error", f"Entrada inválida: {e}")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save settings: {e}")
+            messagebox.showerror("Error", f"Error al guardar configuración: {e}")
 
     def _setup_logging(self):
         handler = LogHandler(self._log_callback)
@@ -358,7 +341,7 @@ class App(ctk.CTk):
 
         if not files:
             empty = ctk.CTkLabel(
-                self.seed_listbox, text="No seed files yet.\nAdd .xlsx files to get started.",
+                self.seed_listbox, text="Aún no hay archivos de origen.\nAgrega archivos .xlsx para comenzar.",
                 text_color=("gray40", "gray60"), font=ctk.CTkFont(size=12),
                 justify="center"
             )
@@ -387,7 +370,7 @@ class App(ctk.CTk):
             info.pack(side="left", fill="x", expand=True, padx=4)
 
             count = ctk.CTkLabel(
-                row_frame, text=f"{rows} rows",
+                row_frame, text=f"{rows} filas",
                 font=ctk.CTkFont(size=11), text_color=("gray40", "gray60")
             )
             count.pack(side="right", padx=(4, 8))
@@ -403,8 +386,8 @@ class App(ctk.CTk):
 
     def _add_file(self):
         paths = filedialog.askopenfilenames(
-            title="Select Excel files",
-            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
+            title="Seleccionar archivos Excel",
+            filetypes=[("Archivos Excel", "*.xlsx"), ("Todos los archivos", "*.*")]
         )
         if not paths:
             return
@@ -422,39 +405,14 @@ class App(ctk.CTk):
             copied += 1
 
         self._refresh_seed_list()
-        self._append_log(f"Added {copied} file(s) to seed folder.")
+        self._append_log(f"Agregado(s) {copied} archivo(s) a la carpeta de origen.")
 
     def _remove_file(self, filename):
         path = os.path.join(SEED_DIR, filename)
         if os.path.exists(path):
             os.remove(path)
             self._refresh_seed_list()
-            self._append_log(f"Removed {filename}.")
-
-    def _download_sample(self):
-        dest = filedialog.asksaveasfilename(
-            title="Save sample Excel",
-            defaultextension=".xlsx",
-            filetypes=[("Excel files", "*.xlsx")],
-            initialfilename="sample_seed.xlsx"
-        )
-        if not dest:
-            return
-
-        df = pd.DataFrame({
-            "A": ["Juan Pérez García", "María López Hernández", "Carlos Ramírez Díaz"],
-            "B": ["PEPJ850101HDF", "LOHM900202MDF", "RADC780303HDF"]
-        })
-        df.to_excel(dest, index=False, header=False)
-        self._append_log(f"Sample saved to {dest}")
-
-    def _clear_checkpoint(self):
-        path = ".checkpoint/state.json"
-        if os.path.exists(path):
-            os.remove(path)
-            self._append_log("Checkpoint cleared.")
-        else:
-            self._append_log("No checkpoint to clear.")
+            self._append_log(f"Eliminado {filename}.")
 
     def _toggle_run(self):
         if self._running:
@@ -464,39 +422,8 @@ class App(ctk.CTk):
     def _start_processing(self):
         files = [f for f in os.listdir(SEED_DIR) if f.endswith(".xlsx")]
         if not files:
-            messagebox.showwarning("No Files", "Please add some seed .xlsx files before starting.")
+            messagebox.showwarning("Sin Archivos", "Por favor agrega algunos archivos .xlsx de origen antes de iniciar.")
             return
-
-        # Check for stale checkpoint
-        from checkpoint import Checkpoint
-        cp = Checkpoint()
-        total_rows = 0
-        already_processed = 0
-        for fname in files:
-            fpath = os.path.join(SEED_DIR, fname)
-            try:
-                df = pd.read_excel(fpath)
-                total_rows += len(df)
-                for _, row in df.iterrows():
-                    rfc = str(row.iloc[1]) if len(row) > 1 else ""
-                    if cp.is_processed(rfc):
-                        already_processed += 1
-            except Exception:
-                pass
-
-        if total_rows > 0 and already_processed / total_rows > 0.5:
-            if not messagebox.askyesno(
-                "Stale Checkpoint Detected",
-                f"{already_processed} of {total_rows} records appear to be already processed from a previous run.\n\n"
-                "This will result in 0 new records being processed.\n\n"
-                "Do you want to CLEAR the checkpoint and start fresh?\n\n"
-                "(Click Yes to clear, No to continue with existing checkpoint)"
-            ):
-                return
-            cp_path = ".checkpoint/state.json"
-            if os.path.exists(cp_path):
-                os.remove(cp_path)
-            self._append_log("Checkpoint cleared due to stale data.")
 
         # Sync slider values to config before running
         try:
@@ -505,17 +432,17 @@ class App(ctk.CTk):
             config["processing"]["max_workers"] = int(self.slider_worker.get())
             ConfigManager.save(config)
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to sync settings: {e}")
+            messagebox.showerror("Error", f"Error al sincronizar configuración: {e}")
             return
 
         self._running = True
-        self.btn_start.configure(text="Running...", state="disabled")
+        self.btn_start.configure(text="Ejecutando...", state="disabled")
         self.btn_auto.configure(state="disabled")
         self.slider_batch.configure(state="disabled")
         self.slider_worker.configure(state="disabled")
         self.btn_add.configure(state="disabled")
         self.progress.set(0)
-        self.status_label.configure(text="Starting...")
+        self.status_label.configure(text="Iniciando...")
 
         from orchestrator import Orchestrator
         try:
@@ -527,7 +454,7 @@ class App(ctk.CTk):
             )
             thread.start()
         except Exception as e:
-            messagebox.showerror("Critical Error", f"Failed to initialize orchestrator: {e}")
+            messagebox.showerror("Error Crítico", f"Error al inicializar el orquestador: {e}")
             self._on_complete()
 
     def _run_async(self, orchestrator):
@@ -541,7 +468,7 @@ class App(ctk.CTk):
                 )
             )
         except Exception as e:
-            self.after(0, lambda: messagebox.showerror("Critical Error", f"Processing failed: {e}"))
+            self.after(0, lambda: messagebox.showerror("Error Crítico", f"El procesamiento falló: {e}"))
         finally:
             loop.close()
             self.after(0, self._on_complete)
@@ -550,19 +477,19 @@ class App(ctk.CTk):
         def _do():
             if total > 0:
                 self.progress.set(processed / total)
-            self.status_label.configure(text=f"Processed {processed} / {total}")
+            self.status_label.configure(text=f"Procesados {processed} / {total}")
         self.after(0, _do)
 
     def _on_complete(self):
         self._running = False
-        self.btn_start.configure(text="Start Processing", state="normal")
+        self.btn_start.configure(text="Iniciar Procesamiento", state="normal")
         self.btn_auto.configure(state="normal")
         self.slider_batch.configure(state="normal")
         self.slider_worker.configure(state="normal")
         self.btn_add.configure(state="normal")
         self.progress.set(1)
-        self.status_label.configure(text="Done")
-        logging.info("All processing completed.")
+        self.status_label.configure(text="Listo")
+        logging.info("Procesamiento completado.")
 
 
 def main():

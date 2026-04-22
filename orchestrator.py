@@ -4,7 +4,6 @@ import logging
 import yaml
 
 from cache import APICache
-from checkpoint import Checkpoint
 from compactor import Compactor
 from index import SeedIndex
 from session import create_session
@@ -22,7 +21,6 @@ class Orchestrator:
             enabled=self.config["cache"]["enabled"],
             flush_interval=200,
         )
-        self.checkpoint = Checkpoint()
         self.compactor = Compactor(
             output_dir=self.config["output"]["dir"],
             found_suffix=self.config["output"]["found_suffix"],
@@ -33,9 +31,9 @@ class Orchestrator:
 
     async def run(self, on_progress=None, on_log=None):
         if on_log:
-            on_log("Starting context-engineered data processing")
+            on_log("Iniciando procesamiento de datos")
         else:
-            logging.info("Starting context-engineered data processing")
+            logging.info("Iniciando procesamiento de datos")
 
         session = await create_session(limit=self.config["processing"]["max_workers"])
 
@@ -45,57 +43,52 @@ class Orchestrator:
             processed_overall = 0
 
             for file_info in files:
-                self.checkpoint.set_current_file(file_info["filename"])
-                # Reset per-file result lists to avoid cross-file contamination
-                self.checkpoint._found = []
-                self.checkpoint._not_found = []
-                msg = f"Processing: {file_info['filename']} ({file_info['row_count']} rows)"
+                found = []
+                not_found = []
+                msg = f"Procesando: {file_info['filename']} ({file_info['row_count']} filas)"
                 if on_log: on_log(msg)
                 else: logging.info(msg)
 
                 batch_size = self.config["processing"]["batch_size"]
                 processed_in_file = 0
-
                 for start in range(0, file_info["row_count"], batch_size):
                     batch = self.seed_index.load_batch(
                         file_info["filepath"], start=start, size=batch_size
                     )
-                    tasks = []
-                    for name, rfc in batch:
-                        if self.checkpoint.is_processed(rfc):
-                            processed_overall += 1
-                            continue
-                        tasks.append(
-                            process_person(name, rfc, self.config, self.cache, session)
-                        )
+                    tasks = [
+                        process_person(name, rfc, self.config, self.cache, session)
+                        for name, rfc in batch
+                    ]
 
                     results = await asyncio.gather(*tasks, return_exceptions=True)
                     for result in results:
                         if isinstance(result, Exception):
+                            processed_overall += 1
                             continue
-                        self.checkpoint.mark_processed(result["RFC"], result)
+                        if result.get("Status") == "Found":
+                            found.append(result)
+                        else:
+                            not_found.append(result)
                         processed_in_file += 1
                         processed_overall += 1
 
-                    self.checkpoint.save()
                     self.cache.flush()
 
                     if on_progress:
                         on_progress(processed_overall, total_rows)
 
-                    msg = f"Batch complete: {processed_in_file} records processed"
+                    msg = f"Lote completado: {processed_in_file}/{file_info['row_count']} registros"
                     if on_log: on_log(msg)
                     else: logging.info(msg)
 
-                found, not_found = self.checkpoint.get_results()
                 summary = self.compactor.compact(found, not_found, file_info["basename"])
-                msg = f"Completed {file_info['filename']}: {summary['found_count']} found, {summary['not_found_count']} not found"
+                msg = f"Completado {file_info['filename']}: {summary['found_count']} encontrados, {summary['not_found_count']} no encontrados"
                 if on_log: on_log(msg)
                 else: logging.info(msg)
         finally:
             await session.close()
             self.cache.close()
 
-        msg = "All processing completed."
+        msg = "Procesamiento completado."
         if on_log: on_log(msg)
         else: logging.info(msg)

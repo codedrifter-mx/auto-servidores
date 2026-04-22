@@ -18,8 +18,8 @@ filters:
     tipoDeclaracion: MODIFICACION
     institucionReceptora: INSTITUTO MEXICANO DEL SEGURO SOCIAL
 processing:
-  batch_size: 100
-  max_workers: 100
+  batch_size: 200
+  max_workers: 200
   checkpoint_interval: 25
 output:
   dir: .

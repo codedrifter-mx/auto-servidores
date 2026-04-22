@@ -11,7 +11,7 @@ class APICache:
         self.ttl = ttl_seconds
         self.enabled = enabled
         self._mem = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._dirty = 0
         self._flush_interval = flush_interval
         if enabled:
