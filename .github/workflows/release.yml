@@ -25,7 +25,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --name auto_servidores main.py
+          pyinstaller --onefile --windowed --name auto_servidores --collect-all customtkinter --add-data "seed;seed" --add-data "config.yaml;." main.py
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
