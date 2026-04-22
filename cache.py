@@ -7,7 +7,7 @@ import threading
 
 
 class APICache:
-    def __init__(self, db_path, ttl_seconds=3600, enabled=True, flush_interval=100):
+    def __init__(self, db_path, ttl_seconds=3600, enabled=True, flush_interval=100, use_wal=True):
         self.ttl = ttl_seconds
         self.enabled = enabled
         self._mem = {}
@@ -18,8 +18,9 @@ class APICache:
             self.db_path = db_path
             os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
             self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA synchronous=NORMAL")
+            if use_wal:
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.execute("PRAGMA synchronous=NORMAL")
             self._conn.execute("""
                 CREATE TABLE IF NOT EXISTS cache (
                     key TEXT PRIMARY KEY,

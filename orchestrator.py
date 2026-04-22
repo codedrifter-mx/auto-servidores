@@ -31,18 +31,27 @@ class Orchestrator:
         )
         self.seed_index = SeedIndex()
 
-    async def run(self):
-        logging.info("Starting context-engineered data processing")
+    async def run(self, on_progress=None, on_log=None):
+        if on_log:
+            on_log("Starting context-engineered data processing")
+        else:
+            logging.info("Starting context-engineered data processing")
 
         session = await create_session(limit=self.config["processing"]["max_workers"])
 
         try:
-            for file_info in self.seed_index.get_files():
+            files = self.seed_index.get_files()
+            total_rows = sum(f["row_count"] for f in files)
+            processed_overall = 0
+
+            for file_info in files:
                 self.checkpoint.set_current_file(file_info["filename"])
-                logging.info(f"Processing: {file_info['filename']} ({file_info['row_count']} rows)")
+                msg = f"Processing: {file_info['filename']} ({file_info['row_count']} rows)"
+                if on_log: on_log(msg)
+                else: logging.info(msg)
 
                 batch_size = self.config["processing"]["batch_size"]
-                processed_count = 0
+                processed_in_file = 0
 
                 for start in range(0, file_info["row_count"], batch_size):
                     batch = self.seed_index.load_batch(
@@ -51,6 +60,7 @@ class Orchestrator:
                     tasks = []
                     for name, rfc in batch:
                         if self.checkpoint.is_processed(rfc):
+                            processed_overall += 1
                             continue
                         tasks.append(
                             process_person(name, rfc, self.config, self.cache, session)
@@ -61,20 +71,28 @@ class Orchestrator:
                         if isinstance(result, Exception):
                             continue
                         self.checkpoint.mark_processed(result["RFC"], result)
-                        processed_count += 1
+                        processed_in_file += 1
+                        processed_overall += 1
 
                     self.checkpoint.save()
                     self.cache.flush()
-                    logging.info(f"Batch complete: {processed_count} records processed")
+
+                    if on_progress:
+                        on_progress(processed_overall, total_rows)
+
+                    msg = f"Batch complete: {processed_in_file} records processed"
+                    if on_log: on_log(msg)
+                    else: logging.info(msg)
 
                 found, not_found = self.checkpoint.get_results()
                 summary = self.compactor.compact(found, not_found, file_info["basename"])
-                logging.info(
-                    f"Completed {file_info['filename']}: "
-                    f"{summary['found_count']} found, {summary['not_found_count']} not found"
-                )
+                msg = f"Completed {file_info['filename']}: {summary['found_count']} found, {summary['not_found_count']} not found"
+                if on_log: on_log(msg)
+                else: logging.info(msg)
         finally:
             await session.close()
             self.cache.close()
 
-        logging.info("All processing completed.")
+        msg = "All processing completed."
+        if on_log: on_log(msg)
+        else: logging.info(msg)

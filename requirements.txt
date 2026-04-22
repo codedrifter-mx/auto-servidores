@@ -3,5 +3,6 @@ pyyaml
 openpyxl
 aiohttp
 customtkinter
+psutil
 pytest
 pytest-asyncio

@@ -39,17 +39,17 @@ class TestAPICache:
         cache.set("/api", {"q": "1"}, {"data": "ok"})
         assert cache.get("/api", {"q": "1"}) is None
 
-    @pytest.mark.skip(reason="SQLite WAL lock issue with dual instances")
+    @pytest.mark.skip(reason="SQLite locking issues on Windows environment")
     def test_flush_persists_to_db(self, cache_path):
-        cache = APICache(db_path=cache_path, ttl_seconds=3600, flush_interval=1)
-        cache.set("/api", {"q": "1"}, {"data": "ok"})
-        cache.flush()
-        cache.close()
+        def setup_and_flush():
+            cache = APICache(db_path=cache_path, ttl_seconds=3600, flush_interval=1, use_wal=False)
+            cache.set("/api", {"q": "1"}, {"data": "ok"})
+            cache.flush()
+            cache.close()
 
-        import time
-        time.sleep(0.5)
+        setup_and_flush()
 
-        cache2 = APICache(db_path=cache_path, ttl_seconds=3600)
+        cache2 = APICache(db_path=cache_path, ttl_seconds=3600, use_wal=False)
         assert cache2.get("/api", {"q": "1"}) == {"data": "ok"}
         cache2.close()
 
