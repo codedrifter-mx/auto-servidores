@@ -1,0 +1,29 @@
+api:
+  base_url: "https://servicios.dkla8prod.buengobierno.gob.mx"
+  endpoints:
+    search: "/declaranet/consulta-servidores-publicos/buscarsp"
+    history: "/declaranet/consulta-servidores-publicos/historico"
+  default_coll_name: 100
+  timeout: 30
+  max_retries: 3
+
+cache:
+  enabled: true
+  db_path: ".cache/api_cache.db"
+  ttl_seconds: 3600
+
+filters:
+  years_to_check: [2025, 2026]
+  common_filters:
+    tipoDeclaracion: "MODIFICACION"
+    institucionReceptora: "INSTITUTO MEXICANO DEL SEGURO SOCIAL"
+
+processing:
+  batch_size: 50
+  max_workers: 100
+  checkpoint_interval: 25
+
+output:
+  dir: "."
+  found_suffix: "_ENCONTRADOS"
+  not_found_suffix: "_NO_ENCONTRADOS"
