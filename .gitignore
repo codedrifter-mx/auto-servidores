@@ -4,3 +4,8 @@
 *.xlsx.bak
 AutoSenadores.zip
 chromedriver.exe
+
+# PyInstaller
+dist/
+build/
+*.spec
