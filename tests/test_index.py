@@ -96,3 +96,20 @@ class TestSeedIndex:
         _create_seed(seed_dir, "mydata.xlsx", [("A", "R1")])
         index = SeedIndex(seed_dir=seed_dir)
         assert index.get_files()[0]["basename"] == "mydata"
+
+    def test_load_batch_caches_dataframe(self, seed_dir):
+        _create_seed(seed_dir, "test.xlsx", [
+            ("Juan Perez", "PEPJ850101"),
+            ("Maria Lopez", "LOHM900202"),
+            ("Carlos Diaz", "RADC780303"),
+        ])
+        index = SeedIndex(seed_dir=seed_dir)
+        filepath = index.get_files()[0]["filepath"]
+
+        batch1 = index.load_batch(filepath, start=0, size=2)
+        assert len(batch1) == 2
+        assert filepath in index._df_cache
+
+        batch2 = index.load_batch(filepath, start=1, size=2)
+        assert len(batch2) == 2
+        assert batch2[0][0] == "MARIA LOPEZ"

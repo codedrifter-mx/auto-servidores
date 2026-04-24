@@ -1,7 +1,9 @@
+import asyncio
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from worker import process_person
+from worker import process_person, _post_with_retry
+from session import RateLimitGate
 
 
 def _make_config():
@@ -13,6 +15,7 @@ def _make_config():
                 "history": "/history",
             },
             "default_coll_name": 100,
+            "max_retries": 2,
         },
         "filters": {
             "years_to_check": [2025, 2026],
@@ -53,6 +56,10 @@ def _make_mock_session(responses):
     return session
 
 
+def _make_rate_gate():
+    return RateLimitGate(max_concurrent=10, min_interval=0.0, cooldown_base=0.1, cooldown_max=1.0)
+
+
 class TestProcessPerson:
     @pytest.mark.asyncio
     async def test_person_not_found(self):
@@ -61,8 +68,9 @@ class TestProcessPerson:
         session = _make_mock_session([
             (200, {"estatus": False, "datos": []}),
         ])
+        gate = _make_rate_gate()
 
-        result = await process_person("Juan", "RFC1", config, cache, session)
+        result = await process_person("Juan", "RFC1", config, cache, session, gate)
         assert result["Name"] == "Juan"
         assert result["RFC"] == "RFC1"
         assert result["Status"] == "Not found"
@@ -85,8 +93,9 @@ class TestProcessPerson:
                 ],
             }),
         ])
+        gate = _make_rate_gate()
 
-        result = await process_person("Juan", "RFC1", config, cache, session)
+        result = await process_person("Juan", "RFC1", config, cache, session, gate)
         assert result["Status"] == "Found"
         assert result["noComprobante_2025"] == "ABC123"
 
@@ -95,8 +104,9 @@ class TestProcessPerson:
         config = _make_config()
         cache = _make_mock_cache()
         session = _make_mock_session([(500, {})])
+        gate = _make_rate_gate()
 
-        result = await process_person("Juan", "RFC1", config, cache, session)
+        result = await process_person("Juan", "RFC1", config, cache, session, gate)
         assert result["Status"] == "Error"
 
     @pytest.mark.asyncio
@@ -108,8 +118,9 @@ class TestProcessPerson:
         session = _make_mock_session([
             (200, {"datos": []}),
         ])
+        gate = _make_rate_gate()
 
-        result = await process_person("Juan", "RFC1", config, cache, session)
+        result = await process_person("Juan", "RFC1", config, cache, session, gate)
         assert session.post.call_count == 0
 
     @pytest.mark.asyncio
@@ -130,8 +141,9 @@ class TestProcessPerson:
                 ],
             }),
         ])
+        gate = _make_rate_gate()
 
-        result = await process_person("Juan", "RFC1", config, cache, session)
+        result = await process_person("Juan", "RFC1", config, cache, session, gate)
         assert result["Status"] == "Not found"
         assert result["noComprobante_2025"] == ""
 
@@ -153,8 +165,9 @@ class TestProcessPerson:
                 ],
             }),
         ])
+        gate = _make_rate_gate()
 
-        result = await process_person("Juan", "RFC1", config, cache, session)
+        result = await process_person("Juan", "RFC1", config, cache, session, gate)
         assert result["Status"] == "Not found"
 
     @pytest.mark.asyncio
@@ -165,5 +178,32 @@ class TestProcessPerson:
         session = MagicMock()
         session.post = MagicMock(side_effect=Exception("network error"))
 
-        result = await process_person("Juan", "RFC1", config, cache, session)
+        gate = _make_rate_gate()
+
+        result = await process_person("Juan", "RFC1", config, cache, session, gate)
         assert result["Status"] == "Error"
+
+
+class TestPostWithRetry:
+    @pytest.mark.asyncio
+    async def test_reports_success_on_200(self):
+        gate = RateLimitGate(max_concurrent=10, min_interval=0.0)
+        session = _make_mock_session([(200, {"ok": True})])
+
+        result = await _post_with_retry(session, "https://example.com/test", gate, max_retries=2)
+        assert result == {"ok": True}
+
+    @pytest.mark.asyncio
+    async def test_reports_429_to_gate(self):
+        gate = RateLimitGate(max_concurrent=10, min_interval=0.0, cooldown_base=0.01, cooldown_max=0.1)
+        assert gate._consecutive_429s == 0
+
+        session = _make_mock_session([
+            (429, {}),
+            (429, {}),
+            (200, {"ok": True}),
+        ])
+
+        result = await _post_with_retry(session, "https://example.com/test", gate, max_retries=2, base_delay=0.01)
+        assert result == {"ok": True}
+        assert gate._consecutive_429s == 0

@@ -4,12 +4,19 @@ api:
     search: /declaranet/consulta-servidores-publicos/buscarsp
     history: /declaranet/consulta-servidores-publicos/historico
   default_coll_name: 100
-  timeout: 30
-  max_retries: 3
+  timeout: 60
+  max_retries: 5
+  retry_base_delay: 2.0
 cache:
   enabled: true
   db_path: .cache/api_cache.db
   ttl_seconds: 3600
+rate_limit:
+  max_concurrent: 10
+  min_interval: 0.15
+  cooldown_base: 5.0
+  cooldown_max: 60.0
+  inter_batch_delay: 1.5
 filters:
   years_to_check:
   - 2025
@@ -18,10 +25,9 @@ filters:
     tipoDeclaracion: MODIFICACION
     institucionReceptora: INSTITUTO MEXICANO DEL SEGURO SOCIAL
 processing:
-  batch_size: 200
-  max_workers: 200
-  checkpoint_interval: 25
+  batch_size: 25
+  max_workers: 10
 output:
-  dir: .
+  dir: output/
   found_suffix: _ENCONTRADOS
   not_found_suffix: _NO_ENCONTRADOS

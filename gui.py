@@ -55,20 +55,15 @@ class SystemInfo:
         cores = specs["cpu_cores"]
         ram = specs["ram_gb"]
 
-        # Heuristic: more cores + more RAM = more aggressive concurrency
-        max_workers = min(cores * 6, 200)
-        if ram < 8:
-            batch_size = 25
-            max_workers = min(max_workers, 50)
+        max_workers = min(cores, 10)
+        if ram < 4:
+            batch_size = 10
+        elif ram < 8:
+            batch_size = 15
         elif ram < 16:
-            batch_size = 50
-            max_workers = min(max_workers, 100)
-        elif ram < 32:
-            batch_size = 75
-            max_workers = min(max_workers, 150)
+            batch_size = 25
         else:
-            batch_size = 100
-            max_workers = min(max_workers, 200)
+            batch_size = 25
 
         return {"batch_size": batch_size, "max_workers": max_workers}
 
@@ -179,9 +174,9 @@ class App(ctk.CTk):
         ctk.CTkLabel(batch_frame, text="Tamaño de Lote", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
         self.lbl_batch_val = ctk.CTkLabel(batch_frame, text="50", font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_batch_val.pack(anchor="w")
-        self.slider_batch = ctk.CTkSlider(batch_frame, from_=10, to=200, number_of_steps=19, command=self._on_batch_change)
+        self.slider_batch = ctk.CTkSlider(batch_frame, from_=5, to=100, number_of_steps=19, command=self._on_batch_change)
         self.slider_batch.pack(fill="x", pady=(5, 0))
-        self.slider_batch.set(50)
+        self.slider_batch.set(25)
 
         # Max Workers Slider
         worker_frame = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
@@ -189,9 +184,9 @@ class App(ctk.CTk):
         ctk.CTkLabel(worker_frame, text="Trabajadores Máx.", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
         self.lbl_worker_val = ctk.CTkLabel(worker_frame, text="100", font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_worker_val.pack(anchor="w")
-        self.slider_worker = ctk.CTkSlider(worker_frame, from_=10, to=200, number_of_steps=19, command=self._on_worker_change)
+        self.slider_worker = ctk.CTkSlider(worker_frame, from_=1, to=20, number_of_steps=19, command=self._on_worker_change)
         self.slider_worker.pack(fill="x", pady=(5, 0))
-        self.slider_worker.set(100)
+        self.slider_worker.set(10)
 
         # Auto-config + Action Buttons
         action_frame = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
@@ -254,9 +249,102 @@ class App(ctk.CTk):
         years_str = ",".join(map(str, config["filters"]["years_to_check"]))
         self.ent_years = self._create_setting_row(filt_frame, "Años (separados por coma):", years_str)
 
+        # Rate Limit Section
+        rl = config.get("rate_limit", {})
+        rl_frame = ctk.CTkFrame(container)
+        rl_frame.pack(fill="x", pady=(0, 15))
+        ctk.CTkLabel(rl_frame, text="Control de Rate Limit", font=ctk.CTkFont(weight="bold")).pack(padx=10, pady=5, anchor="w")
+
+        # Max Concurrent
+        self.lbl_rl_concurrent = ctk.CTkLabel(rl_frame, text="")
+        self._build_slider_row(rl_frame, "Conexiones Máximas:", 1, 20, 19,
+                               rl.get("max_concurrent", 10), self.lbl_rl_concurrent,
+                               "_on_rl_concurrent_change")
+
+        # Min Interval
+        self.lbl_rl_interval = ctk.CTkLabel(rl_frame, text="")
+        self._build_float_slider_row(rl_frame, "Intervalo Mínimo (seg):", 0.05, 1.0, 19,
+                                     rl.get("min_interval", 0.15), self.lbl_rl_interval,
+                                     "_on_rl_interval_change")
+
+        # Cooldown Base
+        self.lbl_rl_cooldown = ctk.CTkLabel(rl_frame, text="")
+        self._build_float_slider_row(rl_frame, "Cooldown al obtener 429 (seg):", 1.0, 30.0, 29,
+                                     rl.get("cooldown_base", 5.0), self.lbl_rl_cooldown,
+                                     "_on_rl_cooldown_change")
+
+        # Cooldown Max
+        self.lbl_rl_cooldown_max = ctk.CTkLabel(rl_frame, text="")
+        self._build_float_slider_row(rl_frame, "Cooldown Máximo (seg):", 5.0, 120.0, 23,
+                                     rl.get("cooldown_max", 60.0), self.lbl_rl_cooldown_max,
+                                     "_on_rl_cooldown_max_change")
+
+        # Inter-batch Delay
+        self.lbl_rl_batch_delay = ctk.CTkLabel(rl_frame, text="")
+        self._build_float_slider_row(rl_frame, "Pausa Entre Lotes (seg):", 0.0, 10.0, 20,
+                                     rl.get("inter_batch_delay", 1.5), self.lbl_rl_batch_delay,
+                                     "_on_rl_batch_delay_change")
+
+        # Retry Base Delay
+        self.lbl_retry_delay = ctk.CTkLabel(rl_frame, text="")
+        max_retries = config["api"].get("max_retries", 5)
+        api_retry_base = config.get("api", {}).get("retry_base_delay", 2.0)
+        self._build_float_slider_row(rl_frame, "Base de Espera al Reintentar (seg):", 0.5, 10.0, 19,
+                                     api_retry_base, self.lbl_retry_delay,
+                                     "_on_retry_delay_change")
+
+        # Max Retries
+        self.lbl_max_retries = ctk.CTkLabel(rl_frame, text="")
+        self._build_slider_row(rl_frame, "Reintentos Máximos:", 1, 10, 9,
+                               max_retries, self.lbl_max_retries,
+                               "_on_max_retries_change")
+
         # Save Button
         self.btn_save_config = ctk.CTkButton(container, text="Guardar Configuración", command=self._save_config, fg_color="green", hover_color="darkgreen")
         self.btn_save_config.pack(pady=20)
+
+    def _build_slider_row(self, parent, label, from_, to, steps, initial, val_label, callback_name):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(row, text=label, anchor="w").pack(side="left")
+        val_label.configure(text=str(int(initial)))
+        val_label.pack(side="right", padx=(5, 0))
+        slider = ctk.CTkSlider(row, from_=from_, to=to, number_of_steps=steps, command=lambda v, cb=callback_name: getattr(self, cb)(v))
+        slider.pack(fill="x", padx=(0, 5))
+        slider.set(int(initial))
+        setattr(self, callback_name.replace("_on_", "_slider_"), slider)
+
+    def _build_float_slider_row(self, parent, label, from_, to, steps, initial, val_label, callback_name):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(row, text=label, anchor="w").pack(side="left")
+        val_label.configure(text=f"{initial:.2f}")
+        val_label.pack(side="right", padx=(5, 0))
+        slider = ctk.CTkSlider(row, from_=from_, to=to, number_of_steps=steps, command=lambda v, cb=callback_name: getattr(self, cb)(v))
+        slider.pack(fill="x", padx=(0, 5))
+        slider.set(initial)
+        setattr(self, callback_name.replace("_on_", "_slider_"), slider)
+
+    def _on_rl_concurrent_change(self, value):
+        self.lbl_rl_concurrent.configure(text=str(int(value)))
+
+    def _on_rl_interval_change(self, value):
+        self.lbl_rl_interval.configure(text=f"{value:.2f}")
+
+    def _on_rl_cooldown_change(self, value):
+        self.lbl_rl_cooldown.configure(text=f"{value:.1f}")
+
+    def _on_rl_cooldown_max_change(self, value):
+        self.lbl_rl_cooldown_max.configure(text=f"{value:.1f}")
+
+    def _on_rl_batch_delay_change(self, value):
+        self.lbl_rl_batch_delay.configure(text=f"{value:.1f}")
+
+    def _on_retry_delay_change(self, value):
+        self.lbl_retry_delay.configure(text=f"{value:.1f}")
+
+    def _on_max_retries_change(self, value):
+        self.lbl_max_retries.configure(text=str(int(value)))
 
     def _create_setting_row(self, parent, label, value):
         row = ctk.CTkFrame(parent, fg_color="transparent")
@@ -285,7 +373,7 @@ class App(ctk.CTk):
         self.lbl_batch_val.configure(text=str(batch))
         self.lbl_worker_val.configure(text=str(workers))
 
-        self._append_log(f"Auto-configurado: batch_size={batch}, max_workers={workers} (basado en {self.specs['cpu_cores']} núcleos, {self.specs['ram_gb']} GB RAM)")
+        self._append_log(f"Auto-configurado: batch_size={batch}, max_workers={workers} (basado en {self.specs['cpu_cores']} núcleos, {self.specs['ram_gb']} GB RAM) — Limitado por rate-limit del API")
 
     def _load_config_to_sliders(self):
         try:
@@ -296,6 +384,31 @@ class App(ctk.CTk):
             self.slider_worker.set(workers)
             self.lbl_batch_val.configure(text=str(batch))
             self.lbl_worker_val.configure(text=str(workers))
+
+            rl = config.get("rate_limit", {})
+            if hasattr(self, 'slider_rl_concurrent'):
+                self.slider_rl_concurrent.set(rl.get("max_concurrent", 10))
+                self.lbl_rl_concurrent.configure(text=str(rl.get("max_concurrent", 10)))
+            if hasattr(self, 'slider_rl_interval'):
+                self.slider_rl_interval.set(rl.get("min_interval", 0.15))
+                self.lbl_rl_interval.configure(text=f"{rl.get('min_interval', 0.15):.2f}")
+            if hasattr(self, 'slider_rl_cooldown'):
+                self.slider_rl_cooldown.set(rl.get("cooldown_base", 5.0))
+                self.lbl_rl_cooldown.configure(text=f"{rl.get('cooldown_base', 5.0):.1f}")
+            if hasattr(self, 'slider_rl_cooldown_max'):
+                self.slider_rl_cooldown_max.set(rl.get("cooldown_max", 60.0))
+                self.lbl_rl_cooldown_max.configure(text=f"{rl.get('cooldown_max', 60.0):.0f}")
+            if hasattr(self, 'slider_rl_batch_delay'):
+                self.slider_rl_batch_delay.set(rl.get("inter_batch_delay", 1.5))
+                self.lbl_rl_batch_delay.configure(text=f"{rl.get('inter_batch_delay', 1.5):.1f}")
+            if hasattr(self, 'slider_retry_delay'):
+                retry_base = config.get("api", {}).get("retry_base_delay", 2.0)
+                self.slider_retry_delay.set(retry_base)
+                self.lbl_retry_delay.configure(text=f"{retry_base:.1f}")
+            if hasattr(self, 'slider_max_retries'):
+                max_retries = config.get("api", {}).get("max_retries", 5)
+                self.slider_max_retries.set(max_retries)
+                self.lbl_max_retries.configure(text=str(max_retries))
         except Exception:
             pass
 
@@ -306,9 +419,19 @@ class App(ctk.CTk):
             config["api"]["default_coll_name"] = int(self.ent_coll_name.get())
             config["filters"]["years_to_check"] = [int(x.strip()) for x in self.ent_years.get().split(",") if x.strip()]
 
-            # Also save slider values
             config["processing"]["batch_size"] = int(self.slider_batch.get())
             config["processing"]["max_workers"] = int(self.slider_worker.get())
+
+            config["api"]["max_retries"] = int(self.slider_max_retries.get())
+            config["api"]["retry_base_delay"] = round(self.slider_retry_delay.get(), 1)
+
+            rl = config.get("rate_limit", {})
+            rl["max_concurrent"] = int(self.slider_rl_concurrent.get())
+            rl["min_interval"] = round(self.slider_rl_interval.get(), 2)
+            rl["cooldown_base"] = round(self.slider_rl_cooldown.get(), 1)
+            rl["cooldown_max"] = round(self.slider_rl_cooldown_max.get(), 1)
+            rl["inter_batch_delay"] = round(self.slider_rl_batch_delay.get(), 1)
+            config["rate_limit"] = rl
 
             ConfigManager.save(config)
             messagebox.showinfo("Éxito", "¡Configuración guardada exitosamente!")
@@ -359,28 +482,32 @@ class App(ctk.CTk):
 
             row_frame = ctk.CTkFrame(self.seed_listbox, fg_color=("gray85", "gray25"))
             row_frame.pack(fill="x", padx=2, pady=2)
+            row_frame.grid_columnconfigure(1, weight=1)
 
             icon = ctk.CTkLabel(row_frame, text="📄", font=ctk.CTkFont(size=14))
-            icon.pack(side="left", padx=(8, 4))
+            icon.grid(row=0, column=0, padx=(8, 4), pady=4)
 
+            display_name = fname if len(fname) <= 24 else fname[:21] + "..."
             info = ctk.CTkLabel(
-                row_frame, text=f"{fname}",
-                font=ctk.CTkFont(size=12), justify="left"
+                row_frame, text=display_name,
+                font=ctk.CTkFont(size=12), justify="left", anchor="w"
             )
-            info.pack(side="left", fill="x", expand=True, padx=4)
+            info.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
 
             count = ctk.CTkLabel(
                 row_frame, text=f"{rows} filas",
                 font=ctk.CTkFont(size=11), text_color=("gray40", "gray60")
             )
-            count.pack(side="right", padx=(4, 8))
+            count.grid(row=0, column=2, padx=(4, 4), pady=4)
 
             btn_del = ctk.CTkButton(
-                row_frame, text="🗑️", width=30, height=24,
+                row_frame, text="X", width=28, height=24,
                 fg_color="transparent", hover_color=("gray70", "gray30"),
+                text_color=("gray40", "gray60"),
+                font=ctk.CTkFont(size=12, weight="bold"),
                 command=lambda f=fname: self._remove_file(f)
             )
-            btn_del.pack(side="right", padx=(0, 4))
+            btn_del.grid(row=0, column=3, padx=(0, 8), pady=4)
 
             self.file_widgets.extend([row_frame, icon, info, count, btn_del])
 
@@ -430,6 +557,15 @@ class App(ctk.CTk):
             config = ConfigManager.load()
             config["processing"]["batch_size"] = int(self.slider_batch.get())
             config["processing"]["max_workers"] = int(self.slider_worker.get())
+            config["api"]["max_retries"] = int(self.slider_max_retries.get())
+            config["api"]["retry_base_delay"] = round(self.slider_retry_delay.get(), 1)
+            rl = config.get("rate_limit", {})
+            rl["max_concurrent"] = int(self.slider_rl_concurrent.get())
+            rl["min_interval"] = round(self.slider_rl_interval.get(), 2)
+            rl["cooldown_base"] = round(self.slider_rl_cooldown.get(), 1)
+            rl["cooldown_max"] = round(self.slider_rl_cooldown_max.get(), 1)
+            rl["inter_batch_delay"] = round(self.slider_rl_batch_delay.get(), 1)
+            config["rate_limit"] = rl
             ConfigManager.save(config)
         except Exception as e:
             messagebox.showerror("Error", f"Error al sincronizar configuración: {e}")

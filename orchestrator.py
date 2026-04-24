@@ -6,7 +6,7 @@ import yaml
 from cache import APICache
 from compactor import Compactor
 from index import SeedIndex
-from session import create_session
+from session import RateLimitGate, create_session
 from worker import process_person
 
 
@@ -14,6 +14,14 @@ class Orchestrator:
     def __init__(self, config_path="config.yaml"):
         with open(config_path) as f:
             self.config = yaml.safe_load(f)
+
+        rate_cfg = self.config.get("rate_limit", {})
+        self.rate_gate = RateLimitGate(
+            max_concurrent=rate_cfg.get("max_concurrent", 10),
+            min_interval=rate_cfg.get("min_interval", 0.15),
+            cooldown_base=rate_cfg.get("cooldown_base", 5.0),
+            cooldown_max=rate_cfg.get("cooldown_max", 60.0),
+        )
 
         self.cache = APICache(
             db_path=self.config["cache"]["db_path"],
@@ -35,7 +43,10 @@ class Orchestrator:
         else:
             logging.info("Iniciando procesamiento de datos")
 
-        session = await create_session(limit=self.config["processing"]["max_workers"])
+        max_workers = self.config["processing"]["max_workers"]
+        rl_cfg = self.config.get("rate_limit", {})
+        max_concurrent = rl_cfg.get("max_concurrent", max_workers)
+        session, self.rate_gate = await create_session(limit=max_concurrent, rate_gate=self.rate_gate)
 
         try:
             files = self.seed_index.get_files()
@@ -56,7 +67,7 @@ class Orchestrator:
                         file_info["filepath"], start=start, size=batch_size
                     )
                     tasks = [
-                        process_person(name, rfc, self.config, self.cache, session)
+                        process_person(name, rfc, self.config, self.cache, session, self.rate_gate)
                         for name, rfc in batch
                     ]
 
@@ -80,6 +91,9 @@ class Orchestrator:
                     msg = f"Lote completado: {processed_in_file}/{file_info['row_count']} registros"
                     if on_log: on_log(msg)
                     else: logging.info(msg)
+
+                    inter_batch = self.config.get("rate_limit", {}).get("inter_batch_delay", 1.5)
+                    await asyncio.sleep(inter_batch)
 
                 summary = self.compactor.compact(found, not_found, file_info["basename"])
                 msg = f"Completado {file_info['filename']}: {summary['found_count']} encontrados, {summary['not_found_count']} no encontrados"

@@ -7,6 +7,7 @@ class SeedIndex:
     def __init__(self, seed_dir="seed"):
         self.seed_dir = seed_dir
         self.index = []
+        self._df_cache = {}
         self._build_index()
 
     def _build_index(self):
@@ -27,7 +28,9 @@ class SeedIndex:
         return self.index
 
     def load_batch(self, filepath, start=0, size=50):
-        df = pd.read_excel(filepath)
+        if filepath not in self._df_cache:
+            self._df_cache[filepath] = pd.read_excel(filepath)
+        df = self._df_cache[filepath]
         batch = df.iloc[start:start + size]
         return [
             (row.iloc[0].upper().strip().replace("/", " "), row.iloc[1])

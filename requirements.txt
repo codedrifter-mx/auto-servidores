@@ -1,8 +1,6 @@
-pandas
-pyyaml
-openpyxl
-aiohttp
-customtkinter
-psutil
-pytest
-pytest-asyncio
+pandas>=2.0
+pyyaml>=6.0
+openpyxl>=3.1
+aiohttp>=3.9
+customtkinter>=5.2
+psutil>=5.9
