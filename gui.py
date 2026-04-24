@@ -312,7 +312,7 @@ class App(ctk.CTk):
         slider = ctk.CTkSlider(row, from_=from_, to=to, number_of_steps=steps, command=lambda v, cb=callback_name: getattr(self, cb)(v))
         slider.pack(fill="x", padx=(0, 5))
         slider.set(int(initial))
-        setattr(self, callback_name.replace("_on_", "_slider_"), slider)
+        setattr(self, callback_name.replace("_on_", "slider_").replace("_change", ""), slider)
 
     def _build_float_slider_row(self, parent, label, from_, to, steps, initial, val_label, callback_name):
         row = ctk.CTkFrame(parent, fg_color="transparent")
@@ -323,7 +323,7 @@ class App(ctk.CTk):
         slider = ctk.CTkSlider(row, from_=from_, to=to, number_of_steps=steps, command=lambda v, cb=callback_name: getattr(self, cb)(v))
         slider.pack(fill="x", padx=(0, 5))
         slider.set(initial)
-        setattr(self, callback_name.replace("_on_", "_slider_"), slider)
+        setattr(self, callback_name.replace("_on_", "slider_").replace("_change", ""), slider)
 
     def _on_rl_concurrent_change(self, value):
         self.lbl_rl_concurrent.configure(text=str(int(value)))
