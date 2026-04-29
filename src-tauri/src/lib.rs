@@ -1,8 +1,12 @@
 mod cache;
 mod client;
+mod compactor;
 mod config;
 mod models;
+mod orchestrator;
 mod rate_limit;
+mod seed_index;
+mod worker;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
