@@ -44,3 +44,6 @@ seed/*.xlsx
 # OS files
 .DS_Store
 Thumbs.db
+
+# Worktrees
+.worktrees/
