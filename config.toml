@@ -30,7 +30,7 @@ institucionReceptora = "INSTITUTO MEXICANO DEL SEGURO SOCIAL"
 
 [processing]
 batch_size = 100
-max_workers = 50
+max_workers = 1000
 
 [output]
 dir = "output"

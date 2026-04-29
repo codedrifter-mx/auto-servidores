@@ -97,7 +97,7 @@ pub struct ProcessingConfig {
 }
 
 fn default_batch_size() -> usize { 100 }
-fn default_max_workers() -> usize { 50 }
+fn default_max_workers() -> usize { 1000 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputConfig {

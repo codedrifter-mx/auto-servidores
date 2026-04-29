@@ -16,7 +16,7 @@ const els = {
   sliderWorker: document.getElementById('slider-worker'),
   batchValue: document.getElementById('batch-value'),
   workerValue: document.getElementById('worker-value'),
-  btnAuto: document.getElementById('btn-auto'),
+
   btnStart: document.getElementById('btn-start'),
   logText: document.getElementById('log-text'),
   progressBar: document.getElementById('progress-bar'),
@@ -123,19 +123,6 @@ async function addFile() {
   }
 }
 
-async function autoConfig() {
-  try {
-    const rec = await invoke('get_recommended_settings');
-    els.sliderBatch.value = rec.batch_size;
-    els.batchValue.textContent = rec.batch_size;
-    els.sliderWorker.value = rec.max_workers;
-    els.workerValue.textContent = rec.max_workers;
-    appendLog(`Auto-configurado: batch_size=${rec.batch_size}, max_workers=${rec.max_workers}`, 'info');
-  } catch (e) {
-    appendLog(`Error en auto-configuración: ${e}`, 'error');
-  }
-}
-
 async function startProcessing() {
   if (isProcessing) return;
   
@@ -153,7 +140,7 @@ async function startProcessing() {
   isProcessing = true;
   els.btnStart.textContent = 'Ejecutando...';
   els.btnStart.disabled = true;
-  els.btnAuto.disabled = true;
+
   els.sliderBatch.disabled = true;
   els.sliderWorker.disabled = true;
   els.btnAddFile.disabled = true;
@@ -174,7 +161,7 @@ function onProcessingComplete() {
   isProcessing = false;
   els.btnStart.textContent = 'Iniciar Procesamiento';
   els.btnStart.disabled = false;
-  els.btnAuto.disabled = false;
+
   els.sliderBatch.disabled = false;
   els.sliderWorker.disabled = false;
   els.btnAddFile.disabled = false;
@@ -211,7 +198,6 @@ function setupTauriEvents() {
 
 function setupEventListeners() {
   els.btnAddFile.addEventListener('click', addFile);
-  els.btnAuto.addEventListener('click', autoConfig);
   els.btnStart.addEventListener('click', startProcessing);
   
   els.sliderBatch.addEventListener('input', (e) => {
