@@ -1,49 +1,30 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# Rust
+target/
+Cargo.lock
 
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
+# Node
+node_modules/
 dist/
-*.spec
 
-# Virtual environments
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
+# Build output
+src-tauri/target/
 
-# IDEs
+# Cache and data
+.cache/
+output/
+*.db
+
+# IDE
 .idea/
 .vscode/
 .opencode/
 
-# Generated data
-.cache/
-.checkpoint/
-*.db
-*.db-shm
-*.db-wal
-
-# Output files
-output/
-*.xlsx
-
-# Seed data (contains PII)
-seed/*.xlsx
-
-# pytest
-.pytest_cache/
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Worktrees
-.worktrees/
+# Seed data (PII)
+seed/*.xlsx
+
+# Config overrides
+config.local.toml
