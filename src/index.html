@@ -7,8 +7,64 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <h1>Auto Servidores</h1>
-  <p>Cargando...</p>
+  <div id="app" class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h3>Archivos de Origen</h3>
+        <div id="system-info" class="info-card">
+          <div class="info-title">Info del Sistema</div>
+          <div id="cpu-info" class="info-row"></div>
+          <div id="ram-info" class="info-row"></div>
+        </div>
+        <div class="info-card">
+          <div class="info-title">Formato Excel</div>
+          <table class="format-table">
+            <tr><th>A</th><th>B</th></tr>
+            <tr><td>JUAN PEREZ GARCIA</td><td>BEGX123456X01</td></tr>
+            <tr><td>MARIA LOPEZ HDEZ</td><td>BEGX654321X02</td></tr>
+          </table>
+          <div class="hint">Sin fila de encabezado. Primera fila = primera persona.</div>
+        </div>
+        <button id="btn-add-file" class="btn btn-primary">Agregar Archivo</button>
+        <div id="seed-list" class="seed-list"></div>
+      </div>
+    </aside>
+    <main class="main-content">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="processing">Procesamiento</button>
+        <button class="tab-btn" data-tab="settings">Configuración Avanzada</button>
+      </div>
+      <div id="tab-processing" class="tab-panel active">
+        <div class="control-panel">
+          <div class="control-group">
+            <label>Tamaño de Lote</label>
+            <div id="batch-value" class="slider-value">25</div>
+            <input type="range" id="slider-batch" min="5" max="100" step="5" value="25" />
+          </div>
+          <div class="control-group">
+            <label>Trabajadores Máx.</label>
+            <div id="worker-value" class="slider-value">10</div>
+            <input type="range" id="slider-worker" min="1" max="50" step="1" value="10" />
+          </div>
+          <div class="control-group control-actions">
+            <button id="btn-auto" class="btn btn-secondary">Auto-Configurar</button>
+            <button id="btn-start" class="btn btn-start">Iniciar Procesamiento</button>
+          </div>
+        </div>
+        <div class="log-panel">
+          <div id="log-text" class="log-content"></div>
+        </div>
+        <div class="progress-section">
+          <progress id="progress-bar" value="0" max="100"></progress>
+          <div id="status-label" class="status-label">Listo</div>
+        </div>
+      </div>
+      <div id="tab-settings" class="tab-panel">
+        <div class="settings-container" id="settings-form"></div>
+        <button id="btn-save-config" class="btn btn-success">Guardar Configuración</button>
+      </div>
+    </main>
+  </div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
