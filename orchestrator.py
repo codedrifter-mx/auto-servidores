@@ -1,5 +1,8 @@
 import asyncio
 import logging
+import os
+import shutil
+import sys
 
 import yaml
 
@@ -10,10 +13,39 @@ from session import RateLimitGate, create_session
 from worker import process_person
 
 
+def _app_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+_APP_DIR = _app_dir()
+
+
 class Orchestrator:
-    def __init__(self, config_path="config.yaml"):
+    def __init__(self, config_path=None):
+        if config_path is None:
+            config_path = os.path.join(_APP_DIR, "config.yaml")
+            if not os.path.exists(config_path):
+                bundled = getattr(sys, '_MEIPASS', _APP_DIR)
+                bundled_config = os.path.join(bundled, "config.yaml")
+                if os.path.exists(bundled_config) and bundled_config != config_path:
+                    try:
+                        os.makedirs(_APP_DIR, exist_ok=True)
+                        shutil.copy2(bundled_config, config_path)
+                    except Exception:
+                        pass
+                if not os.path.exists(config_path):
+                    config_path = bundled_config
+
         with open(config_path) as f:
             self.config = yaml.safe_load(f)
+
+        # Resolve relative data paths against app directory
+        for section, key in (("cache", "db_path"), ("output", "dir")):
+            path = self.config.get(section, {}).get(key, "")
+            if path and not os.path.isabs(path):
+                self.config[section][key] = os.path.join(_APP_DIR, path)
 
         rate_cfg = self.config.get("rate_limit", {})
         self.rate_gate = RateLimitGate(

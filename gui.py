@@ -3,6 +3,7 @@ import logging
 import os
 import platform
 import shutil
+import sys
 import threading
 from tkinter import filedialog, messagebox
 
@@ -14,8 +15,16 @@ import yaml
 ctk.set_appearance_mode("system")
 ctk.set_default_color_theme("blue")
 
-SEED_DIR = "seed"
-CONFIG_PATH = "config.yaml"
+
+def _app_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+_APP_DIR = _app_dir()
+SEED_DIR = os.path.join(_APP_DIR, "seed")
+CONFIG_PATH = os.path.join(_APP_DIR, "config.yaml")
 
 
 class LogHandler(logging.Handler):
@@ -31,7 +40,19 @@ class LogHandler(logging.Handler):
 class ConfigManager:
     @staticmethod
     def load():
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        if not os.path.exists(CONFIG_PATH):
+            bundled = getattr(sys, '_MEIPASS', _APP_DIR)
+            bundled_config = os.path.join(bundled, "config.yaml")
+            if os.path.exists(bundled_config) and bundled_config != CONFIG_PATH:
+                try:
+                    os.makedirs(_APP_DIR, exist_ok=True)
+                    shutil.copy2(bundled_config, CONFIG_PATH)
+                except Exception:
+                    pass
+        path = CONFIG_PATH if os.path.exists(CONFIG_PATH) else os.path.join(
+            getattr(sys, '_MEIPASS', _APP_DIR), "config.yaml"
+        )
+        with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     @staticmethod
@@ -55,7 +76,7 @@ class SystemInfo:
         cores = specs["cpu_cores"]
         ram = specs["ram_gb"]
 
-        max_workers = min(cores, 10)
+        max_workers = min(cores, 50)
         if ram < 4:
             batch_size = 10
         elif ram < 8:
@@ -80,6 +101,18 @@ class App(ctk.CTk):
 
         self._running = False
         os.makedirs(SEED_DIR, exist_ok=True)
+        if not os.listdir(SEED_DIR):
+            bundled = getattr(sys, '_MEIPASS', _APP_DIR)
+            bundled_seed = os.path.join(bundled, "seed")
+            if os.path.exists(bundled_seed) and bundled_seed != SEED_DIR:
+                try:
+                    for item in os.listdir(bundled_seed):
+                        s = os.path.join(bundled_seed, item)
+                        d = os.path.join(SEED_DIR, item)
+                        if not os.path.exists(d):
+                            shutil.copy2(s, d)
+                except Exception:
+                    pass
 
         self.specs = SystemInfo.get_specs()
 
@@ -184,7 +217,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(worker_frame, text="Trabajadores Máx.", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
         self.lbl_worker_val = ctk.CTkLabel(worker_frame, text="100", font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_worker_val.pack(anchor="w")
-        self.slider_worker = ctk.CTkSlider(worker_frame, from_=1, to=20, number_of_steps=19, command=self._on_worker_change)
+        self.slider_worker = ctk.CTkSlider(worker_frame, from_=1, to=50, number_of_steps=49, command=self._on_worker_change)
         self.slider_worker.pack(fill="x", pady=(5, 0))
         self.slider_worker.set(10)
 

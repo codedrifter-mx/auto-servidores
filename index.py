@@ -1,11 +1,39 @@
 import os
+import shutil
+import sys
 
 import pandas as pd
 
 
+def _app_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+_APP_DIR = _app_dir()
+
+
 class SeedIndex:
-    def __init__(self, seed_dir="seed"):
+    def __init__(self, seed_dir=None):
+        _is_default = seed_dir is None
+        if _is_default:
+            seed_dir = os.path.join(_APP_DIR, "seed")
         self.seed_dir = seed_dir
+        if _is_default:
+            os.makedirs(self.seed_dir, exist_ok=True)
+            if not os.listdir(self.seed_dir):
+                bundled = getattr(sys, '_MEIPASS', _APP_DIR)
+                bundled_seed = os.path.join(bundled, "seed")
+                if os.path.exists(bundled_seed) and bundled_seed != self.seed_dir:
+                    try:
+                        for item in os.listdir(bundled_seed):
+                            s = os.path.join(bundled_seed, item)
+                            d = os.path.join(self.seed_dir, item)
+                            if not os.path.exists(d):
+                                shutil.copy2(s, d)
+                    except Exception:
+                        pass
         self.index = []
         self._df_cache = {}
         self._build_index()

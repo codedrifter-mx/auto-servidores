@@ -11,6 +11,7 @@ class Compactor:
         self.years = years
 
     def compact(self, found, not_found, base_filename):
+        os.makedirs(self.output_dir, exist_ok=True)
         year_cols = [f"noComprobante_{y}" for y in self.years]
         base_cols = ["Name", "RFC"] + year_cols
 

@@ -25,8 +25,8 @@ filters:
     tipoDeclaracion: MODIFICACION
     institucionReceptora: INSTITUTO MEXICANO DEL SEGURO SOCIAL
 processing:
-  batch_size: 25
-  max_workers: 10
+  batch_size: 100
+  max_workers: 50
 output:
   dir: output/
   found_suffix: _ENCONTRADOS
