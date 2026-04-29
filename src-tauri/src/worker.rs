@@ -66,7 +66,7 @@ pub async fn process_person(
 
     let person_data = &datos[0];
     let id_usr = match person_data.get("idUsrDecnet") {
-        Some(id) => id.as_str().unwrap_or("").to_string(),
+        Some(id) => id.to_string().trim_matches('"').to_string(),
         None => return result,
     };
 
