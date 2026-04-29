@@ -1,4 +1,8 @@
+mod cache;
+mod client;
+mod config;
 mod models;
+mod rate_limit;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
