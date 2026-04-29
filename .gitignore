@@ -28,3 +28,4 @@ seed/*.xlsx
 
 # Config overrides
 config.local.toml
+src-tauri/config.toml
