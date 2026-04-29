@@ -16,24 +16,8 @@ use tauri::{Emitter, Manager};
 
 struct AppState {
     config: StdMutex<AppConfig>,
-    config_dir: PathBuf,
+    app_dir: PathBuf,
     processing: Arc<StdMutex<bool>>,
-}
-
-fn get_app_dir(app: &tauri::AppHandle) -> PathBuf {
-    app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."))
-}
-
-fn resolve_config_path(app_dir: &std::path::Path) -> PathBuf {
-    let config_path = app_dir.join("config.toml");
-    if config_path.exists() {
-        return config_path;
-    }
-    let bundled = app_dir.join("config.toml");
-    if bundled.exists() && bundled != config_path {
-        let _ = std::fs::copy(&bundled, &config_path);
-    }
-    config_path
 }
 
 #[tauri::command]
@@ -52,7 +36,7 @@ fn save_config(
     new_config: AppConfig,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    let path = resolve_config_path(&state.config_dir);
+    let path = state.app_dir.join("config.toml");
     config::save_config(&new_config, &path)?;
     let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
     *cfg = new_config;
@@ -66,8 +50,8 @@ fn get_recommended_settings() -> models::RecommendedSettings {
 
 #[tauri::command]
 fn get_seed_files(state: tauri::State<'_, AppState>) -> Result<Vec<models::SeedFileInfo>, String> {
-    let seed_dir = state.config_dir.join("seed");
-    let index = seed_index::SeedIndex::new(&seed_dir)?;
+    let seed_dir = state.app_dir.join("seed");
+    let mut index = seed_index::SeedIndex::new(&seed_dir)?;
     Ok(index.get_files().to_vec())
 }
 
@@ -76,7 +60,7 @@ fn add_seed_file(
     source_path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let seed_dir = state.config_dir.join("seed");
+    let seed_dir = state.app_dir.join("seed");
     std::fs::create_dir_all(&seed_dir)
         .map_err(|e| format!("Error creating seed directory: {}", e))?;
     let source = PathBuf::from(&source_path);
@@ -110,7 +94,7 @@ fn remove_seed_file(
     filename: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    let path = state.config_dir.join("seed").join(&filename);
+    let path = state.app_dir.join("seed").join(&filename);
     if path.exists() {
         std::fs::remove_file(&path)
             .map_err(|e| format!("Error removing file: {}", e))?;
@@ -134,7 +118,7 @@ async fn start_processing(
         let cfg = state.config.lock().map_err(|e| e.to_string())?;
         cfg.clone()
     };
-    let config_dir = state.config_dir.clone();
+    let app_dir = state.app_dir.clone();
 
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
     let (log_tx, mut log_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -156,7 +140,7 @@ async fn start_processing(
     });
 
     tokio::spawn(async move {
-        let orchestrator = orchestrator::Orchestrator::new(config, config_dir);
+        let orchestrator = orchestrator::Orchestrator::new(config, app_dir);
         let result = orchestrator.run(progress_tx, log_tx).await;
         if let Err(e) = result {
             log::error!("Processing failed: {}", e);
@@ -168,20 +152,43 @@ async fn start_processing(
 }
 
 pub fn run() {
-    let app_dir = std::path::PathBuf::from(".");
-    let config_path = resolve_config_path(&app_dir);
-    let config = if config_path.exists() {
-        config::load_config(&config_path).unwrap_or_else(|_| config::default_config())
-    } else {
-        config::default_config()
-    };
-
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState {
-            config: StdMutex::new(config),
-            config_dir: app_dir,
-            processing: Arc::new(StdMutex::new(false)),
+        .setup(|app| {
+            let app_dir = app.path().app_data_dir()
+                .unwrap_or_else(|_| {
+                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+                });
+            
+            std::fs::create_dir_all(&app_dir)
+                .map_err(|e| format!("Failed to create app data dir: {}", e))?;
+
+            let config_path = app_dir.join("config.toml");
+            
+            // Try to copy bundled config on first run
+            if !config_path.exists() {
+                let bundled = app.path().resource_dir()
+                    .map(|r| r.join("config.toml"))
+                    .unwrap_or_else(|_| PathBuf::from("config.toml"));
+                
+                if bundled.exists() {
+                    let _ = std::fs::copy(&bundled, &config_path);
+                }
+            }
+
+            let config = if config_path.exists() {
+                config::load_config(&config_path).unwrap_or_else(|_| config::default_config())
+            } else {
+                config::default_config()
+            };
+
+            app.manage(AppState {
+                config: StdMutex::new(config),
+                app_dir,
+                processing: Arc::new(StdMutex::new(false)),
+            });
+
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_system_info,
