@@ -117,6 +117,7 @@ impl SeedIndex {
         Ok(rows)
     }
 
+    #[allow(dead_code)]
     pub fn refresh(&mut self) -> Result<(), String> {
         self.cache.clear();
         self.build_index()

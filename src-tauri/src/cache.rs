@@ -128,6 +128,7 @@ impl ApiCache {
         }
     }
 
+    #[allow(dead_code)]
     pub fn close(self) {
         if self.enabled {
             if let Ok(conn) = self.conn.into_inner() {

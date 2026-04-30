@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // State
 let config = null;
@@ -82,12 +83,13 @@ function renderSeedList(files) {
     <div class="seed-item">
       <span class="seed-item-name" title="${f.filename}">${f.filename}</span>
       <span class="seed-item-count">${f.row_count} filas</span>
-      <button class="seed-item-delete" data-file="${f.filename}">×</button>
+      <button class="seed-item-delete" data-file="${f.filename}" ${isProcessing ? 'disabled' : ''}>×</button>
     </div>
   `).join('');
-  
+
   els.seedList.querySelectorAll('.seed-item-delete').forEach(btn => {
     btn.addEventListener('click', async (e) => {
+      if (isProcessing) return;
       const filename = e.target.dataset.file;
       try {
         await invoke('remove_seed_file', { filename });
@@ -97,6 +99,12 @@ function renderSeedList(files) {
         appendLog(`Error eliminando ${filename}: ${err}`, 'error');
       }
     });
+  });
+}
+
+function updateSeedListState() {
+  els.seedList.querySelectorAll('.seed-item-delete').forEach(btn => {
+    btn.disabled = isProcessing;
   });
 }
 
@@ -125,29 +133,31 @@ async function addFile() {
 
 async function startProcessing() {
   if (isProcessing) return;
-  
+
   // Sync config from sliders
   config.processing.batch_size = parseInt(els.sliderBatch.value);
   config.processing.max_workers = parseInt(els.sliderWorker.value);
-  
+
   try {
     await invoke('save_config', { newConfig: config });
   } catch (e) {
     appendLog(`Error guardando config: ${e}`, 'error');
     return;
   }
-  
+
   isProcessing = true;
-  els.btnStart.textContent = 'Ejecutando...';
-  els.btnStart.disabled = true;
+  els.btnStart.textContent = 'Detener';
+  els.btnStart.classList.add('btn-stop');
+  els.btnStart.disabled = false;
 
   els.sliderBatch.disabled = true;
   els.sliderWorker.disabled = true;
   els.btnAddFile.disabled = true;
+  updateSeedListState();
   els.progressBar.value = 0;
   els.statusLabel.textContent = 'Iniciando...';
   els.logText.innerHTML = '';
-  
+
   try {
     await invoke('start_processing');
     appendLog('Procesamiento iniciado.', 'info');
@@ -157,14 +167,28 @@ async function startProcessing() {
   }
 }
 
+async function stopProcessing() {
+  if (!isProcessing) return;
+  try {
+    await invoke('stop_processing');
+    appendLog('Solicitud de detención enviada...', 'info');
+    els.btnStart.disabled = true;
+    els.btnStart.textContent = 'Deteniendo...';
+  } catch (e) {
+    appendLog(`Error deteniendo procesamiento: ${e}`, 'error');
+  }
+}
+
 function onProcessingComplete() {
   isProcessing = false;
   els.btnStart.textContent = 'Iniciar Procesamiento';
+  els.btnStart.classList.remove('btn-stop');
   els.btnStart.disabled = false;
 
   els.sliderBatch.disabled = false;
   els.sliderWorker.disabled = false;
   els.btnAddFile.disabled = false;
+  updateSeedListState();
   els.progressBar.value = 100;
   els.statusLabel.textContent = 'Listo';
 }
@@ -186,19 +210,38 @@ function setupTauriEvents() {
       els.statusLabel.textContent = `Procesados ${processed} / ${total}`;
     }
   });
-  
+
   listen('log', (event) => {
     const { message, level } = event.payload;
     appendLog(message, level);
-    if (message === 'Procesamiento completado.') {
+    if (message === 'Procesamiento completado.' || message === 'Procesamiento detenido por el usuario.') {
       onProcessingComplete();
+    }
+  });
+
+  listen('confirm-close', async () => {
+    const confirmed = confirm('El procesamiento está en curso. ¿Deseas detenerlo y cerrar la aplicación?');
+    if (confirmed) {
+      try {
+        await invoke('stop_processing');
+      } catch (e) {
+        // ignore
+      }
+      const win = getCurrentWindow();
+      await win.close();
     }
   });
 }
 
 function setupEventListeners() {
   els.btnAddFile.addEventListener('click', addFile);
-  els.btnStart.addEventListener('click', startProcessing);
+  els.btnStart.addEventListener('click', () => {
+    if (isProcessing) {
+      stopProcessing();
+    } else {
+      startProcessing();
+    }
+  });
   
   els.sliderBatch.addEventListener('input', (e) => {
     els.batchValue.textContent = e.target.value;

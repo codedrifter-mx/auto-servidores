@@ -6,6 +6,8 @@ use crate::rate_limit::RateLimitGate;
 use crate::seed_index::SeedIndex;
 use crate::worker::process_person;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub struct Orchestrator {
@@ -22,6 +24,7 @@ impl Orchestrator {
         &self,
         progress_tx: mpsc::UnboundedSender<crate::models::ProgressEvent>,
         log_tx: mpsc::UnboundedSender<crate::models::LogEvent>,
+        stop_requested: Arc<AtomicBool>,
     ) -> Result<(), String> {
         let _ = log_tx.send(crate::models::LogEvent {
             message: "Iniciando procesamiento de datos".to_string(),
@@ -65,6 +68,8 @@ impl Orchestrator {
             let batch_size = self.config.processing.batch_size;
             let mut processed_in_file = 0;
 
+            let mut stopped = false;
+
             for start in (0..file_info.row_count).step_by(batch_size) {
                 let batch = seed_index.load_batch(
                     &PathBuf::from(&file_info.filepath),
@@ -103,6 +108,15 @@ impl Orchestrator {
                     level: "info".to_string(),
                 });
 
+                if stop_requested.load(Ordering::Relaxed) {
+                    let _ = log_tx.send(crate::models::LogEvent {
+                        message: "Procesamiento detenido por el usuario.".to_string(),
+                        level: "warn".to_string(),
+                    });
+                    stopped = true;
+                    break;
+                }
+
                 let delay = self.config.rate_limit.inter_batch_delay;
                 if delay > 0.0 {
                     tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await;
@@ -128,6 +142,10 @@ impl Orchestrator {
                 ),
                 level: "info".to_string(),
             });
+
+            if stopped {
+                break;
+            }
         }
 
         let _ = log_tx.send(crate::models::LogEvent {

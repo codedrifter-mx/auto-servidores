@@ -66,6 +66,7 @@ pub fn default_config() -> AppConfig {
     }
 }
 
+#[allow(dead_code)]
 pub fn resolve_config_path(app_dir: &std::path::Path) -> std::path::PathBuf {
     let config_path = app_dir.join("config.toml");
     if config_path.exists() {

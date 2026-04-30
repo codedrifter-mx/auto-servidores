@@ -78,6 +78,7 @@ pub struct FiltersConfig {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[allow(non_snake_case)]
 pub struct CommonFilters {
     #[serde(default = "default_tipo_declaracion")]
     pub tipoDeclaracion: String,

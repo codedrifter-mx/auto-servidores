@@ -11,6 +11,7 @@ mod worker;
 
 use models::AppConfig;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{Emitter, Manager};
 
@@ -18,6 +19,7 @@ struct AppState {
     config: StdMutex<AppConfig>,
     app_dir: PathBuf,
     processing: Arc<StdMutex<bool>>,
+    stop_requested: Arc<AtomicBool>,
 }
 
 #[tauri::command]
@@ -51,7 +53,7 @@ fn get_recommended_settings() -> models::RecommendedSettings {
 #[tauri::command]
 fn get_seed_files(state: tauri::State<'_, AppState>) -> Result<Vec<models::SeedFileInfo>, String> {
     let seed_dir = state.app_dir.join("seed");
-    let mut index = seed_index::SeedIndex::new(&seed_dir)?;
+    let index = seed_index::SeedIndex::new(&seed_dir)?;
     Ok(index.get_files().to_vec())
 }
 
@@ -103,6 +105,11 @@ fn remove_seed_file(
 }
 
 #[tauri::command]
+fn stop_processing(state: tauri::State<'_, AppState>) {
+    state.stop_requested.store(true, Ordering::Relaxed);
+}
+
+#[tauri::command]
 async fn start_processing(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
@@ -113,12 +120,14 @@ async fn start_processing(
     }
     drop(is_processing);
     *state.processing.lock().map_err(|e| e.to_string())? = true;
+    state.stop_requested.store(false, Ordering::Relaxed);
 
     let config = {
         let cfg = state.config.lock().map_err(|e| e.to_string())?;
         cfg.clone()
     };
     let app_dir = state.app_dir.clone();
+    let stop_requested = Arc::clone(&state.stop_requested);
 
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
     let (log_tx, mut log_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -141,7 +150,7 @@ async fn start_processing(
 
     tokio::spawn(async move {
         let orchestrator = orchestrator::Orchestrator::new(config, app_dir);
-        let result = orchestrator.run(progress_tx, log_tx).await;
+        let result = orchestrator.run(progress_tx, log_tx, stop_requested).await;
         if let Err(e) = result {
             log::error!("Processing failed: {}", e);
         }
@@ -165,7 +174,6 @@ pub fn run() {
 
             let config_path = app_dir.join("config.toml");
             
-            // Try to copy bundled config on first run
             if !config_path.exists() {
                 let bundled = app.path().resource_dir()
                     .map(|r| r.join("config.toml"))
@@ -182,10 +190,27 @@ pub fn run() {
                 config::default_config()
             };
 
+            let processing = Arc::new(StdMutex::new(false));
+            let stop_requested = Arc::new(AtomicBool::new(false));
+
+            let processing_clone = Arc::clone(&processing);
+            let app_handle = app.handle().clone();
+            
+            let window = app.get_webview_window("main").unwrap();
+            window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    if *processing_clone.lock().unwrap() {
+                        api.prevent_close();
+                        let _ = app_handle.emit_to("main", "confirm-close", ());
+                    }
+                }
+            });
+
             app.manage(AppState {
                 config: StdMutex::new(config),
                 app_dir,
-                processing: Arc::new(StdMutex::new(false)),
+                processing,
+                stop_requested,
             });
 
             Ok(())
@@ -199,6 +224,7 @@ pub fn run() {
             add_seed_file,
             remove_seed_file,
             start_processing,
+            stop_processing,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
