@@ -1,12 +1,12 @@
 {
   "productName": "Auto Servidores",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "identifier": "mx.declaranet.auto-servidores",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
+    "frontendDist": "../src/dist"
   },
   "app": {
     "windows": [
