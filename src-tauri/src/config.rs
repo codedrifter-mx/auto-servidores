@@ -4,7 +4,7 @@ use std::path::Path;
 
 pub fn load_config(path: &Path) -> Result<AppConfig, String> {
     let content = fs::read_to_string(path)
-        .map_err(|e| format!("Error reading config {}: {}", path.display(), e))?;
+        .map_err(|e| format!("Error reading config file: {}", e))?;
     let config: AppConfig = toml::from_str(&content)
         .map_err(|e| format!("Error parsing config: {}", e))?;
     Ok(config)
@@ -64,6 +64,49 @@ pub fn default_config() -> AppConfig {
             not_found_suffix: "_NO_ENCONTRADOS".to_string(),
         },
     }
+}
+
+pub fn validate_config(config: &AppConfig, _app_dir: &std::path::Path) -> Result<(), String> {
+    if !config.api.base_url.starts_with("https://") && !config.api.base_url.starts_with("http://") {
+        return Err("base_url must be a valid HTTP(S) URL".to_string());
+    }
+    if config.api.timeout == 0 || config.api.timeout > 300 {
+        return Err("timeout must be between 1 and 300 seconds".to_string());
+    }
+    if config.api.max_retries > 20 {
+        return Err("max_retries must be at most 20".to_string());
+    }
+    if config.api.retry_base_delay < 0.0 || config.api.retry_base_delay > 60.0 {
+        return Err("retry_base_delay must be between 0 and 60 seconds".to_string());
+    }
+    if config.rate_limit.max_concurrent == 0 || config.rate_limit.max_concurrent > 200 {
+        return Err("max_concurrent must be between 1 and 200".to_string());
+    }
+    if config.rate_limit.min_interval < 0.0 {
+        return Err("min_interval must be non-negative".to_string());
+    }
+    if config.rate_limit.cooldown_base < 0.0 || config.rate_limit.cooldown_max > 300.0 {
+        return Err("cooldown_base and cooldown_max must be reasonable (0-300s)".to_string());
+    }
+    if config.rate_limit.cooldown_base > config.rate_limit.cooldown_max {
+        return Err("cooldown_base must not exceed cooldown_max".to_string());
+    }
+    if config.processing.batch_size == 0 || config.processing.batch_size > 10000 {
+        return Err("batch_size must be between 1 and 10000".to_string());
+    }
+    if config.processing.max_workers == 0 || config.processing.max_workers > 500 {
+        return Err("max_workers must be between 1 and 500".to_string());
+    }
+    if config.cache.db_path.contains("..") {
+        return Err("cache db_path must not contain path traversal sequences".to_string());
+    }
+    if config.output.dir.contains("..") {
+        return Err("output dir must not contain path traversal sequences".to_string());
+    }
+    if config.filters.years_to_check.len() > 50 {
+        return Err("years_to_check must contain at most 50 years".to_string());
+    }
+    Ok(())
 }
 
 #[allow(dead_code)]

@@ -3,6 +3,7 @@ use crate::models::{AppConfig, PersonResult};
 use reqwest::Client;
 use serde_json::json;
 use std::collections::HashMap;
+use url::Url;
 
 pub async fn process_person(
     name: &str,
@@ -27,13 +28,20 @@ pub async fn process_person(
     let person_result = match cache.get(&config.api.endpoints.search, &search_params) {
         Some(cached) => cached,
         None => {
-            let url = format!(
-                "{}{}?busqueda={}&collName={}",
-                config.api.base_url,
-                config.api.endpoints.search,
-                rfc,
-                config.api.default_coll_name
-            );
+            let base = format!("{}{}", config.api.base_url, config.api.endpoints.search);
+            let mut url = match Url::parse(&base) {
+                Ok(u) => u,
+                Err(e) => {
+                    log::error!("Invalid search URL for {}: {}", name, e);
+                    result.status = "Error".to_string();
+                    return result;
+                }
+            };
+            let url = url.query_pairs_mut()
+                .append_pair("busqueda", rfc)
+                .append_pair("collName", &config.api.default_coll_name)
+                .finish()
+                .to_string();
             let response = match post_with_retry(
                 client,
                 &url,
@@ -82,13 +90,20 @@ pub async fn process_person(
     let declaration_result = match cache.get(&config.api.endpoints.history, &history_params) {
         Some(cached) => cached,
         None => {
-            let url = format!(
-                "{}{}?idUsrDecnet={}&collName={}",
-                config.api.base_url,
-                config.api.endpoints.history,
-                id_usr,
-                config.api.default_coll_name
-            );
+            let base = format!("{}{}", config.api.base_url, config.api.endpoints.history);
+            let mut url = match Url::parse(&base) {
+                Ok(u) => u,
+                Err(e) => {
+                    log::error!("Invalid history URL for {}: {}", name, e);
+                    result.status = "Error".to_string();
+                    return result;
+                }
+            };
+            let url = url.query_pairs_mut()
+                .append_pair("idUsrDecnet", &id_usr)
+                .append_pair("collName", &config.api.default_coll_name)
+                .finish()
+                .to_string();
             let response = match post_with_retry(
                 client,
                 &url,

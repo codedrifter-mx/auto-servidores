@@ -46,7 +46,7 @@ impl SeedIndex {
 
     fn count_rows(path: &Path) -> Result<usize, String> {
         let mut workbook: Xlsx<_> = open_workbook(path)
-            .map_err(|e| format!("Error opening {}: {}", path.display(), e))?;
+            .map_err(|e| format!("Error opening spreadsheet: {}", e))?;
         let sheets = workbook.sheet_names();
         if sheets.is_empty() {
             return Ok(0);
@@ -92,7 +92,7 @@ impl SeedIndex {
 
     fn read_all_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
         let mut workbook: Xlsx<_> = open_workbook(path)
-            .map_err(|e| format!("Error opening {}: {}", path.display(), e))?;
+            .map_err(|e| format!("Error opening spreadsheet: {}", e))?;
         let sheets = workbook.sheet_names();
         if sheets.is_empty() {
             return Ok(Vec::new());

@@ -98,7 +98,7 @@ pub struct ProcessingConfig {
 }
 
 fn default_batch_size() -> usize { 100 }
-fn default_max_workers() -> usize { 1000 }
+fn default_max_workers() -> usize { 50 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputConfig {
@@ -134,6 +134,7 @@ pub struct SystemInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SeedFileInfo {
     pub filename: String,
+    #[serde(skip_serializing)]
     pub filepath: String,
     pub basename: String,
     pub row_count: usize,

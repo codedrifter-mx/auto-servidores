@@ -394,3 +394,24 @@ progress::-webkit-progress-value {
   color: var(--text-secondary);
   font-size: 14px;
 }
+
+/* Bottom Bar */
+.bottom-bar {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.btn-open-folder {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-weight: 600;
+  padding: 10px 16px;
+}
+
+.btn-open-folder:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}

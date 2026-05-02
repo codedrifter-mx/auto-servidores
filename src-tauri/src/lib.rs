@@ -38,6 +38,7 @@ fn save_config(
     new_config: AppConfig,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
+    config::validate_config(&new_config, &state.app_dir)?;
     let path = state.app_dir.join("config.toml");
     config::save_config(&new_config, &path)?;
     let mut cfg = state.config.lock().map_err(|e| e.to_string())?;
@@ -62,10 +63,16 @@ fn add_seed_file(
     source_path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
+    let source = PathBuf::from(&source_path);
+    if source.extension().and_then(|e| e.to_str()) != Some("xlsx") {
+        return Err("Only .xlsx files are allowed".to_string());
+    }
+    if !source.is_file() {
+        return Err("Source path is not a valid file".to_string());
+    }
     let seed_dir = state.app_dir.join("seed");
     std::fs::create_dir_all(&seed_dir)
         .map_err(|e| format!("Error creating seed directory: {}", e))?;
-    let source = PathBuf::from(&source_path);
     let filename = source
         .file_name()
         .ok_or("Invalid source path")?
@@ -86,9 +93,18 @@ fn add_seed_file(
     } else {
         dest
     };
+    let canonical_seed = seed_dir
+        .canonicalize()
+        .map_err(|e| format!("Invalid seed directory: {}", e))?;
+    let canonical_dest = dest
+        .canonicalize()
+        .unwrap_or_else(|_| dest.clone());
+    if !canonical_dest.starts_with(&canonical_seed) && canonical_dest != dest {
+        return Err("Destination path escapes seed directory".to_string());
+    }
     std::fs::copy(&source, &dest)
         .map_err(|e| format!("Error copying file: {}", e))?;
-    Ok(dest.to_string_lossy().to_string())
+    Ok(filename)
 }
 
 #[tauri::command]
@@ -96,11 +112,26 @@ fn remove_seed_file(
     filename: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    let path = state.app_dir.join("seed").join(&filename);
-    if path.exists() {
-        std::fs::remove_file(&path)
-            .map_err(|e| format!("Error removing file: {}", e))?;
+    if filename.contains(std::path::MAIN_SEPARATOR)
+        || filename.contains('/')
+        || filename.contains('\\')
+    {
+        return Err("Invalid filename: path separators not allowed".to_string());
     }
+    let seed_dir = state.app_dir.join("seed");
+    let path = seed_dir.join(&filename);
+    let canonical_seed = seed_dir
+        .canonicalize()
+        .map_err(|e| format!("Invalid seed directory: {}", e))?;
+    let canonical_path = match path.canonicalize() {
+        Ok(p) => p,
+        Err(_) => return Ok(()),
+    };
+    if !canonical_path.starts_with(&canonical_seed) {
+        return Err("Path traversal detected".to_string());
+    }
+    std::fs::remove_file(&canonical_path)
+        .map_err(|e| format!("Error removing file: {}", e))?;
     Ok(())
 }
 
@@ -110,16 +141,42 @@ fn stop_processing(state: tauri::State<'_, AppState>) {
 }
 
 #[tauri::command]
+fn open_output_dir(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    if config.output.dir.contains("..") {
+        return Err("Invalid output directory path".to_string());
+    }
+    let output_dir = state.app_dir.join(&config.output.dir);
+    std::fs::create_dir_all(&output_dir)
+        .map_err(|e| format!("Error creating output directory: {}", e))?;
+    let canonical_app = state
+        .app_dir
+        .canonicalize()
+        .map_err(|e| format!("Invalid app directory: {}", e))?;
+    let canonical_output = output_dir
+        .canonicalize()
+        .map_err(|e| format!("Invalid output directory: {}", e))?;
+    if !canonical_output.starts_with(&canonical_app) {
+        return Err("Output directory must be within app directory".to_string());
+    }
+    if !canonical_output.is_dir() {
+        return Err("Output path is not a directory".to_string());
+    }
+    opener::open(&canonical_output)
+        .map_err(|e| format!("Error opening output directory: {}", e))
+}
+
+#[tauri::command]
 async fn start_processing(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let is_processing = state.processing.lock().map_err(|e| e.to_string())?;
-    if *is_processing {
+    let mut processing = state.processing.lock().map_err(|e| e.to_string())?;
+    if *processing {
         return Err("Processing already in progress".to_string());
     }
-    drop(is_processing);
-    *state.processing.lock().map_err(|e| e.to_string())? = true;
+    *processing = true;
+    drop(processing);
     state.stop_requested.store(false, Ordering::Relaxed);
 
     let config = {
@@ -154,7 +211,8 @@ async fn start_processing(
         if let Err(e) = result {
             log::error!("Processing failed: {}", e);
         }
-        *processing_state.lock().unwrap() = false;
+        let mut guard = processing_state.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = false;
     });
 
     Ok("started".to_string())
@@ -199,7 +257,7 @@ pub fn run() {
             let window = app.get_webview_window("main").unwrap();
             window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    if *processing_clone.lock().unwrap() {
+                    if *processing_clone.lock().unwrap_or_else(|e| e.into_inner()) {
                         api.prevent_close();
                         let _ = app_handle.emit_to("main", "confirm-close", ());
                     }
@@ -225,6 +283,7 @@ pub fn run() {
             remove_seed_file,
             start_processing,
             stop_processing,
+            open_output_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

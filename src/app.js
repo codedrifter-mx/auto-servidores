@@ -24,6 +24,7 @@ const els = {
   statusLabel: document.getElementById('status-label'),
   settingsForm: document.getElementById('settings-form'),
   btnSaveConfig: document.getElementById('btn-save-config'),
+  btnOpenOutput: document.getElementById('btn-open-output'),
   tabBtns: document.querySelectorAll('.tab-btn'),
   tabPanels: document.querySelectorAll('.tab-panel'),
 };
@@ -75,22 +76,32 @@ async function loadSeedFiles() {
 }
 
 function renderSeedList(files) {
+  els.seedList.innerHTML = '';
   if (files.length === 0) {
-    els.seedList.innerHTML = '<div class="empty-state">Aún no hay archivos de origen.<br>Agrega archivos .xlsx para comenzar.</div>';
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'Aún no hay archivos de origen. Agrega archivos .xlsx para comenzar.';
+    els.seedList.appendChild(empty);
     return;
   }
-  els.seedList.innerHTML = files.map(f => `
-    <div class="seed-item">
-      <span class="seed-item-name" title="${f.filename}">${f.filename}</span>
-      <span class="seed-item-count">${f.row_count} filas</span>
-      <button class="seed-item-delete" data-file="${f.filename}" ${isProcessing ? 'disabled' : ''}>×</button>
-    </div>
-  `).join('');
-
-  els.seedList.querySelectorAll('.seed-item-delete').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+  files.forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'seed-item';
+    const name = document.createElement('span');
+    name.className = 'seed-item-name';
+    name.title = f.filename;
+    name.textContent = f.filename;
+    const count = document.createElement('span');
+    count.className = 'seed-item-count';
+    count.textContent = f.row_count + ' filas';
+    const btn = document.createElement('button');
+    btn.className = 'seed-item-delete';
+    btn.dataset.file = f.filename;
+    btn.textContent = '\u00d7';
+    if (isProcessing) btn.disabled = true;
+    btn.addEventListener('click', async () => {
       if (isProcessing) return;
-      const filename = e.target.dataset.file;
+      const filename = btn.dataset.file;
       try {
         await invoke('remove_seed_file', { filename });
         await loadSeedFiles();
@@ -99,6 +110,8 @@ function renderSeedList(files) {
         appendLog(`Error eliminando ${filename}: ${err}`, 'error');
       }
     });
+    item.append(name, count, btn);
+    els.seedList.appendChild(item);
   });
 }
 
@@ -262,11 +275,12 @@ function setupEventListeners() {
   });
   
   els.btnSaveConfig.addEventListener('click', saveSettings);
+  els.btnOpenOutput.addEventListener('click', openOutputFolder);
 }
 
 function renderSettingsForm() {
   if (!config) return;
-  
+
   const sections = [
     {
       title: 'Configuración API',
@@ -299,18 +313,46 @@ function renderSettingsForm() {
       ]
     }
   ];
-  
-  els.settingsForm.innerHTML = sections.map(section => `
-    <div class="settings-section">
-      <div class="settings-section-title">${section.title}</div>
-      ${section.fields.map(field => `
-        <div class="setting-row">
-          <span class="setting-label">${field.label}</span>
-          <input class="setting-input" type="text" data-key="${field.key}" value="${field.value}">
-        </div>
-      `).join('')}
-    </div>
-  `).join('');
+
+  els.settingsForm.innerHTML = '';
+  sections.forEach(section => {
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'settings-section';
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'settings-section-title';
+    titleDiv.textContent = section.title;
+    sectionDiv.appendChild(titleDiv);
+    section.fields.forEach(field => {
+      const row = document.createElement('div');
+      row.className = 'setting-row';
+      const label = document.createElement('span');
+      label.className = 'setting-label';
+      label.textContent = field.label;
+      const input = document.createElement('input');
+      input.className = 'setting-input';
+      const isNumeric = typeof field.value === 'number';
+      if (isNumeric) {
+        input.type = 'number';
+        input.step = Number.isInteger(field.value) ? '1' : '0.1';
+        input.min = '0';
+      } else {
+        input.type = 'text';
+      }
+      input.dataset.key = field.key;
+      input.value = field.value;
+      row.append(label, input);
+      sectionDiv.appendChild(row);
+    });
+    els.settingsForm.appendChild(sectionDiv);
+  });
+}
+
+async function openOutputFolder() {
+  try {
+    await invoke('open_output_dir');
+  } catch (e) {
+    appendLog(`Error abriendo carpeta de resultados: ${e}`, 'error');
+  }
 }
 
 async function saveSettings() {
