@@ -1,6 +1,10 @@
 # Auto-Servidores
 
-Aplicación de escritorio para consultar de forma masiva el API de DeclaraNet y verificar si los servidores públicos tienen declaraciones anuales actualizadas. Construida con Tauri 2.0 (Rust) y web frontend servido por Vite.
+Aplicación de escritorio para consulta masiva de declaraciones patrimoniales de servidores públicos mexicanos a través de la API de DeclaraNet, con caché integrado, control de tasa y generación de reportes en Excel.
+
+> **English:** Desktop app for bulk querying Mexican public servants' asset declarations via the DeclaraNet API, with built-in caching, rate limiting, and Excel reporting.
+
+Construida con Tauri 2.0 (Rust) y web frontend servido por Vite.
 
 ![Captura de pantalla](docs/screenshot.png)
 
