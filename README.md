@@ -6,7 +6,8 @@ Aplicación de escritorio para consulta masiva de declaraciones patrimoniales de
 
 Construida con Tauri 2.0 (Rust) y web frontend servido por Vite.
 
-![Captura de pantalla](docs/screenshot.png)
+<img width="2780" height="1590" alt="image" src="https://github.com/user-attachments/assets/418de0fc-ca83-4bb6-84f0-f829d5b2a278" />
+
 
 ## Características
 
