@@ -51,7 +51,9 @@ impl Orchestrator {
 
         let files = seed_index.get_files().to_vec();
         let total_rows: usize = files.iter().map(|f| f.row_count).sum();
-        let mut processed_overall = 0;
+        let mut processed_overall: usize = 0;
+        let mut found_overall: usize = 0;
+        let mut not_found_overall: usize = 0;
 
         for file_info in &files {
             let mut found = Vec::new();
@@ -98,6 +100,8 @@ impl Orchestrator {
                 let _ = progress_tx.send(crate::models::ProgressEvent {
                     processed: processed_overall,
                     total: total_rows,
+                    found: found_overall + found.len(),
+                    not_found: not_found_overall + not_found.len(),
                 });
 
                 let _ = log_tx.send(crate::models::LogEvent {
@@ -134,6 +138,9 @@ impl Orchestrator {
             };
             let compactor = Compactor::new(&output_config);
             let summary = compactor.compact(&found, &not_found, &file_info.basename)?;
+
+            found_overall += found.len();
+            not_found_overall += not_found.len();
 
             let _ = log_tx.send(crate::models::LogEvent {
                 message: format!(

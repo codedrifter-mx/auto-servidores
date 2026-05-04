@@ -150,6 +150,8 @@ pub struct RecommendedSettings {
 pub struct ProgressEvent {
     pub processed: usize,
     pub total: usize,
+    pub found: usize,
+    pub not_found: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

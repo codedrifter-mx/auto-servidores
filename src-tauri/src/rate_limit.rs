@@ -66,7 +66,7 @@ impl RateLimitGate {
             let elapsed = now.saturating_duration_since(*last);
             let min = Duration::from_secs_f64(self.min_interval);
             let wait = min.saturating_sub(elapsed);
-            *last = now;
+            *last = now + wait;
             wait
         };
         if !wait.is_zero() {

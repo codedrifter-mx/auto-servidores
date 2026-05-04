@@ -4,69 +4,232 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Auto Servidores</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div id="app" class="app-container">
-    <aside class="sidebar">
-      <div class="sidebar-section">
-        <h3>Archivos de Origen</h3>
-        <div id="system-info" class="info-card">
-          <div class="info-title">Info del Sistema</div>
-          <div id="cpu-info" class="info-row"></div>
-          <div id="ram-info" class="info-row"></div>
+
+  <!-- Header -->
+  <header class="hdr">
+    <div class="hdr-brand">
+      <div class="hdr-logo"><svg viewBox="0 0 16 16"><path d="M8 2L14 6V14H2V6L8 2ZM8 2V8M2 6H14" stroke="var(--bg-0)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <span class="hdr-title">Auto Servidores</span>
+    </div>
+    <div class="hdr-right">
+      <div class="hdr-stat"><div class="hdr-stat-dot" id="sysStatusDot"></div></div>
+      <button class="btn-icon" id="btnSettings" title="Configuración"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1Z"/></svg></button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Metrics -->
+    <section id="metricsSection">
+      <div class="sec-label">Resumen</div>
+      <div class="metrics">
+        <div class="metric-card fade-in">
+          <span class="metric-label">RFCs Totales</span>
+          <span class="metric-value" id="mRfcs">0</span>
+          <span class="metric-sub" id="mRfcsSub">—</span>
         </div>
-        <div class="info-card">
-          <div class="info-title">Formato Excel</div>
-          <table class="format-table">
-            <tr><th>A</th><th>B</th></tr>
-            <tr><td>JUAN PEREZ GARCIA</td><td>BEGX123456X01</td></tr>
-            <tr><td>MARIA LOPEZ HDEZ</td><td>BEGX654321X02</td></tr>
-          </table>
-          <div class="hint">Sin fila de encabezado. Primera fila = primera persona.</div>
+        <div class="metric-card accent fade-in">
+          <span class="metric-label">Encontrados</span>
+          <span class="metric-value teal" id="mFound">0</span>
+          <span class="metric-sub" id="mFoundSub">—</span>
         </div>
-        <button id="btn-add-file" class="btn btn-primary">Agregar Archivo</button>
-        <div id="seed-list" class="seed-list"></div>
+        <div class="metric-card fade-in">
+          <span class="metric-label">No Encontrados</span>
+          <span class="metric-value" id="mNotFound">0</span>
+          <span class="metric-sub" id="mNotFoundSub">—</span>
+        </div>
+        <div class="metric-card fade-in">
+          <span class="metric-label">Errores 429</span>
+          <span class="metric-value error" id="m429">0</span>
+          <span class="metric-sub" id="m429Sub">rate limit</span>
+        </div>
       </div>
-    </aside>
-    <main class="main-content">
-      <div class="tab-bar">
-        <button class="tab-btn active" data-tab="processing">Procesamiento</button>
-        <button class="tab-btn" data-tab="settings">Configuración Avanzada</button>
-      </div>
-      <div id="tab-processing" class="tab-panel active">
-        <div class="control-panel">
-          <div class="control-group">
-            <label>Tamaño de Lote</label>
-            <div id="batch-value" class="slider-value">100</div>
-            <input type="range" id="slider-batch" min="5" max="1000" step="5" value="100" />
+    </section>
+
+    <!-- Files -->
+    <section>
+      <div class="sec-label">Archivos Fuente</div>
+      <div class="files-layout">
+        <div style="flex:1">
+          <div class="files-dropzone" id="dropzone">
+            <svg class="files-dropzone-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><path d="M24 32V16m0 0l-8 8m8-8l8 8"/><rect x="6" y="6" width="36" height="36" rx="6" stroke-dasharray="4 4"/></svg>
+            <div class="files-dropzone-text"><strong>Agregar archivo</strong> o arrastra archivos .xlsx aquí</div>
           </div>
-          <div class="control-group">
-            <label>Trabajadores Máx.</label>
-            <div id="worker-value" class="slider-value">50</div>
-            <input type="range" id="slider-worker" min="1" max="500" step="1" value="50" />
+          <div class="file-list" id="fileList"></div>
+        </div>
+        <div class="files-hint">
+          <div class="files-hint-card">
+            <h4>Formato esperado</h4>
+            <table>
+              <thead><tr><th>A</th><th>B</th></tr></thead>
+              <tbody>
+                <tr><td>JUAN PEREZ GARCIA</td><td>BEGX123456X01</td></tr>
+                <tr><td>MARIA LOPEZ HDEZ</td><td>BEGX654321X02</td></tr>
+              </tbody>
+            </table>
+            <div class="files-hint-hint">Sin fila de encabezado. La primera fila = primera persona.</div>
           </div>
-          <div class="control-group control-actions">
-            <button id="btn-start" class="btn btn-start">Iniciar Procesamiento</button>
+          
+        </div>
+      </div>
+    </section>
+
+    <!-- Processing -->
+    <section>
+      <div class="sec-label">Procesamiento</div>
+      <div class="panel">
+        <div class="panel-body">
+          <div class="proc-header">
+            <div class="proc-status">
+              <div class="proc-status-dot idle" id="procDot"></div>
+              <span class="proc-status-text" id="procStatusText">Inactivo</span>
+            </div>
+            <span class="proc-status-badge" id="procBadge">LISTO</span>
+          </div>
+
+          <div class="proc-progress">
+            <div class="proc-bar-wrap"><div class="proc-bar" id="procBar"></div></div>
+            <div class="proc-numbers">
+              <span><strong id="procProcessed">0</strong> / <strong id="procTotal">0</strong> RFCs</span>
+              <span id="procElapsed">00:00</span>
+            </div>
+          </div>
+
+          <div class="proc-controls">
+            <button class="btn btn-primary" id="btnStart">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21"/></svg>
+              Iniciar Procesamiento
+            </button>
+            <button class="btn btn-secondary" id="btnOpenResults">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              Abrir Carpeta de Resultados
+            </button>
+          </div>
+
+          <div class="proc-log">
+            <div class="proc-log-header">
+              <span>Registro</span>
+              <button class="btn btn-secondary btn-sm" id="btnClearLog">Limpiar</button>
+            </div>
+            <div class="proc-log-body" id="logBody"></div>
           </div>
         </div>
-        <div class="log-panel">
-          <div id="log-text" class="log-content"></div>
-        </div>
-        <div class="progress-section">
-          <progress id="progress-bar" value="0" max="100"></progress>
-          <div id="status-label" class="status-label">Listo</div>
-        </div>
       </div>
-      <div id="tab-settings" class="tab-panel">
-        <div class="settings-container" id="settings-form"></div>
-        <button id="btn-save-config" class="btn btn-success">Guardar Configuración</button>
-      </div>
-      <div class="bottom-bar">
-        <button id="btn-open-output" class="btn btn-open-folder">Abrir Carpeta de Resultados</button>
-      </div>
+    </section>
+
     </main>
-  </div>
+
+  <!-- Settings Drawer -->
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head">
+      <h3>Configuración Avanzada</h3>
+      <button class="btn-icon" id="btnCloseDrawer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="drawer-body">
+
+      <div class="form-group">
+        <label class="form-label">URL de la API</label>
+        <input class="form-input" id="cfgApiUrl" placeholder="https://servicios.dkla8prod.buengobierno.gob.mx">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">ID de Colección</label>
+        <input class="form-input" id="cfgCollectionId" placeholder="100">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Años (separados por coma)</label>
+          <input class="form-input" id="cfgYears" placeholder="2025, 2026">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de Declaración</label>
+          <input class="form-input" id="cfgDeclType" placeholder="MODIFICACION">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Institución Receptora</label>
+        <input class="form-input" id="cfgInstitution" placeholder="INSTITUTO MEXICANO DEL SEGURO SOCIAL">
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+
+      <div class="form-group">
+        <label class="form-label">Conexiones Concurrentes</label>
+        <div class="range-wrap">
+          <div class="range-row">
+            <input type="range" id="cfgWorkers" min="1" max="500" value="10">
+            <span class="range-val" id="cfgWorkersVal">10</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Tamaño de Lote</label>
+        <div class="range-wrap">
+          <div class="range-row">
+            <input type="range" id="cfgBatch" min="5" max="1000" step="5" value="100">
+            <span class="range-val" id="cfgBatchVal">100</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Reintentos Máximos</label>
+          <input class="form-input" id="cfgRetries" type="number" value="5" min="0" max="20">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Base de Espera (seg)</label>
+          <input class="form-input" id="cfgRetryBaseDelay" type="number" value="2" min="0.1" step="0.1">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Intervalo Mínimo (seg)</label>
+          <input class="form-input" id="cfgMinInterval" type="number" value="0.15" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pausa Entre Lotes (seg)</label>
+          <input class="form-input" id="cfgInterBatchDelay" type="number" value="1.5" min="0" step="0.1">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cooldown Base (seg)</label>
+          <input class="form-input" id="cfgCooldownBase" type="number" value="5" min="0" step="0.5">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cooldown Máx (seg)</label>
+          <input class="form-input" id="cfgCooldownMax" type="number" value="60" min="0" step="1">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Timeout (seg)</label>
+        <input class="form-input" id="cfgTimeout" type="number" value="60" min="5" step="1">
+        <span class="form-hint">Tiempo máximo de espera por solicitud HTTP</span>
+      </div>
+
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-primary" id="btnSaveConfig" style="width:100%">Guardar Configuración</button>
+    </div>
+  </aside>
+
   <script type="module" src="/app.js"></script>
 </body>
 </html>

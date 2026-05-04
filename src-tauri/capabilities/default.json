@@ -5,6 +5,7 @@
   "permissions": [
     "core:default",
     "dialog:default",
+    "dialog:allow-ask",
     "shell:allow-open"
   ]
 }
