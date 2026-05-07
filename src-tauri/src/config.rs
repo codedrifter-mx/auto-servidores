@@ -191,4 +191,77 @@ not_found_suffix = "_NO_ENCONTRADOS"
         let result = load_config(std::path::Path::new("/nonexistent/config.toml"));
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_validate_config_valid() {
+        let config = default_config();
+        let dir = tempfile::tempdir().unwrap();
+        assert!(validate_config(&config, dir.path()).is_ok());
+    }
+
+    #[test]
+    fn test_validate_config_invalid_url() {
+        let mut config = default_config();
+        config.api.base_url = "not-a-url".to_string();
+        let dir = tempfile::tempdir().unwrap();
+        assert!(validate_config(&config, dir.path()).is_err());
+    }
+
+    #[test]
+    fn test_validate_config_zero_timeout() {
+        let mut config = default_config();
+        config.api.timeout = 0;
+        let dir = tempfile::tempdir().unwrap();
+        assert!(validate_config(&config, dir.path()).is_err());
+    }
+
+    #[test]
+    fn test_validate_config_path_traversal_db() {
+        let mut config = default_config();
+        config.cache.db_path = "../etc/passwd".to_string();
+        let dir = tempfile::tempdir().unwrap();
+        assert!(validate_config(&config, dir.path()).is_err());
+    }
+
+    #[test]
+    fn test_validate_config_path_traversal_output() {
+        let mut config = default_config();
+        config.output.dir = "../../../tmp".to_string();
+        let dir = tempfile::tempdir().unwrap();
+        assert!(validate_config(&config, dir.path()).is_err());
+    }
+
+    #[test]
+    fn test_validate_config_cooldown_inversion() {
+        let mut config = default_config();
+        config.rate_limit.cooldown_base = 60.0;
+        config.rate_limit.cooldown_max = 5.0;
+        let dir = tempfile::tempdir().unwrap();
+        assert!(validate_config(&config, dir.path()).is_err());
+    }
+
+    #[test]
+    fn test_default_config_is_valid() {
+        let config = default_config();
+        let dir = tempfile::tempdir().unwrap();
+        assert!(validate_config(&config, dir.path()).is_ok());
+    }
+
+    #[test]
+    fn test_load_malformed_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        fs::write(&path, "this is not valid toml [[[").unwrap();
+        let result = load_config(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_save_creates_parent_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("a").join("b").join("config.toml");
+        let config = default_config();
+        save_config(&config, &nested).unwrap();
+        assert!(nested.exists());
+    }
 }
