@@ -159,3 +159,86 @@ pub struct LogEvent {
     pub message: String,
     pub level: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_appconfig_toml_roundtrip() {
+        let config = crate::config::default_config();
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let parsed: AppConfig = toml::from_str(&toml_str).unwrap();
+        assert_eq!(parsed.api.base_url, config.api.base_url);
+        assert_eq!(parsed.api.endpoints.search, config.api.endpoints.search);
+        assert_eq!(parsed.api.default_coll_name, config.api.default_coll_name);
+        assert_eq!(parsed.api.timeout, config.api.timeout);
+        assert_eq!(parsed.api.max_retries, config.api.max_retries);
+        assert_eq!(parsed.api.retry_base_delay, config.api.retry_base_delay);
+        assert_eq!(parsed.cache.enabled, config.cache.enabled);
+        assert_eq!(parsed.cache.db_path, config.cache.db_path);
+        assert_eq!(parsed.cache.ttl_seconds, config.cache.ttl_seconds);
+        assert_eq!(parsed.rate_limit.max_concurrent, config.rate_limit.max_concurrent);
+        assert_eq!(parsed.rate_limit.min_interval, config.rate_limit.min_interval);
+        assert_eq!(parsed.rate_limit.cooldown_base, config.rate_limit.cooldown_base);
+        assert_eq!(parsed.rate_limit.cooldown_max, config.rate_limit.cooldown_max);
+        assert_eq!(parsed.rate_limit.inter_batch_delay, config.rate_limit.inter_batch_delay);
+        assert_eq!(parsed.filters.years_to_check, config.filters.years_to_check);
+        assert_eq!(parsed.filters.common_filters.tipoDeclaracion, config.filters.common_filters.tipoDeclaracion);
+        assert_eq!(parsed.filters.common_filters.institucionReceptora, config.filters.common_filters.institucionReceptora);
+        assert_eq!(parsed.processing.batch_size, config.processing.batch_size);
+        assert_eq!(parsed.processing.max_workers, config.processing.max_workers);
+        assert_eq!(parsed.output.dir, config.output.dir);
+        assert_eq!(parsed.output.found_suffix, config.output.found_suffix);
+        assert_eq!(parsed.output.not_found_suffix, config.output.not_found_suffix);
+    }
+
+    #[test]
+    fn test_personresult_json_roundtrip() {
+        let mut comprobantes = std::collections::HashMap::new();
+        comprobantes.insert(2025, "COMP001".to_string());
+        let person = PersonResult {
+            name: "JUAN PEREZ".to_string(),
+            rfc: "XEXX010101000".to_string(),
+            status: "Found".to_string(),
+            comprobantes: Some(comprobantes),
+        };
+        let json = serde_json::to_string(&person).unwrap();
+        let parsed: PersonResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.name, person.name);
+        assert_eq!(parsed.rfc, person.rfc);
+        assert_eq!(parsed.status, person.status);
+        assert!(parsed.comprobantes.is_some());
+        assert_eq!(parsed.comprobantes.unwrap().get(&2025), Some(&"COMP001".to_string()));
+    }
+
+    #[test]
+    fn test_personresult_without_comprobantes() {
+        let person = PersonResult {
+            name: "MARIA LOPEZ".to_string(),
+            rfc: "XEXX020202000".to_string(),
+            status: "Not found".to_string(),
+            comprobantes: None,
+        };
+        let json = serde_json::to_string(&person).unwrap();
+        assert!(!json.contains("comprobantes"));
+        let parsed: PersonResult = serde_json::from_str(&json).unwrap();
+        assert!(parsed.comprobantes.is_none());
+    }
+
+    #[test]
+    fn test_progress_event_json_shape() {
+        let event = ProgressEvent {
+            processed: 50,
+            total: 100,
+            found: 10,
+            not_found: 40,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["processed"], 50);
+        assert_eq!(parsed["total"], 100);
+        assert_eq!(parsed["found"], 10);
+        assert_eq!(parsed["not_found"], 40);
+    }
+}
