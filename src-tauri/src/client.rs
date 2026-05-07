@@ -53,4 +53,14 @@ mod tests {
         let client = create_client(&config);
         assert!(client.is_ok());
     }
+
+    #[test]
+    fn test_create_headers_has_required_keys() {
+        let headers = create_headers();
+        assert!(headers.contains_key(reqwest::header::CONTENT_TYPE));
+        assert!(headers.contains_key(reqwest::header::USER_AGENT));
+        assert!(headers.contains_key(reqwest::header::ACCEPT));
+        assert!(headers.contains_key(reqwest::header::ORIGIN));
+        assert!(headers.contains_key(reqwest::header::REFERER));
+    }
 }
