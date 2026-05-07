@@ -114,4 +114,39 @@ mod tests {
         let elapsed = start.elapsed();
         assert!(elapsed >= Duration::from_secs_f64(0.04));
     }
+
+    #[tokio::test]
+    async fn test_semaphore_limit_blocks() {
+        let gate = RateLimitGate::new(2, 0.0, 5.0, 60.0);
+        let p1 = gate.acquire().await;
+        let p2 = gate.acquire().await;
+        let start = Instant::now();
+        let acquired = tokio::select! {
+            _ = tokio::time::sleep(Duration::from_millis(50)) => false,
+            p3 = gate.acquire() => { drop(p3); true },
+        };
+        drop(p1);
+        drop(p2);
+        assert!(!acquired || start.elapsed() >= Duration::from_millis(40));
+    }
+
+    #[tokio::test]
+    async fn test_cooldown_caps_at_max() {
+        let gate = RateLimitGate::new(10, 0.0, 5.0, 10.0);
+        for _ in 0..10 {
+            gate.report_429().await;
+        }
+        let cooldown = gate.report_429().await;
+        assert!(cooldown <= 10.0, "cooldown {} exceeded max 10.0", cooldown);
+    }
+
+    #[tokio::test]
+    async fn test_success_resets_429_counter() {
+        let gate = RateLimitGate::new(10, 0.0, 2.0, 60.0);
+        gate.report_429().await;
+        gate.report_429().await;
+        gate.report_success().await;
+        let cooldown = gate.report_429().await;
+        assert_eq!(cooldown, 2.0, "cooldown should reset to base after success");
+    }
 }
