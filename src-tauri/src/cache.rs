@@ -186,4 +186,41 @@ mod tests {
         let result = cache.get("/ep", &params);
         assert!(result.is_none());
     }
+
+    #[test]
+    fn test_cache_overwrite() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        let cache = ApiCache::new(&path, 3600, true).unwrap();
+        let params = json!({"key": "value"});
+        cache.set("/ep", &params, &json!({"data": 1}));
+        cache.set("/ep", &params, &json!({"data": 2}));
+        let result = cache.get("/ep", &params);
+        assert_eq!(result.unwrap()["data"], 2);
+    }
+
+    #[test]
+    fn test_cache_key_deterministic() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        let cache = ApiCache::new(&path, 3600, true).unwrap();
+        let params1 = json!({"busqueda": "RFC1", "collName": "100"});
+        let params2 = json!({"busqueda": "RFC1", "collName": "100"});
+        cache.set("/search", &params1, &json!({"result": true}));
+        let result = cache.get("/search", &params2);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_cache_sorted_params() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        let cache = ApiCache::new(&path, 3600, true).unwrap();
+        let params_ab = json!({"a": 1, "b": 2});
+        let params_ba = json!({"b": 2, "a": 1});
+        cache.set("/ep", &params_ab, &json!({"val": "match"}));
+        let result = cache.get("/ep", &params_ba);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap()["val"], "match");
+    }
 }
