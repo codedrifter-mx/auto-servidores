@@ -123,3 +123,99 @@ impl SeedIndex {
         self.build_index()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_xlsxwriter::Workbook;
+
+    fn create_test_xlsx(path: &Path, rows: Vec<Vec<impl AsRef<str>>>) {
+        let mut workbook = Workbook::new();
+        let worksheet = workbook.add_worksheet();
+        for (row_idx, row) in rows.iter().enumerate() {
+            for (col_idx, cell) in row.iter().enumerate() {
+                worksheet.write_string(row_idx as u32, col_idx as u16, cell.as_ref()).unwrap();
+            }
+        }
+        workbook.save(path).unwrap();
+    }
+
+    #[test]
+    fn test_seed_index_reads_xlsx() {
+        let dir = tempfile::tempdir().unwrap();
+        let xlsx_path = dir.path().join("test_data.xlsx");
+        create_test_xlsx(&xlsx_path, vec![
+            vec!["JUAN PEREZ", "XEXX010101000"],
+            vec!["MARIA LOPEZ", "XEXX020202000"],
+            vec!["CARLOS RAMIREZ", "XEXX030303000"],
+        ]);
+        let index = SeedIndex::new(dir.path()).unwrap();
+        let files = index.get_files();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].filename, "test_data.xlsx");
+        assert_eq!(files[0].row_count, 3);
+    }
+
+    #[test]
+    fn test_seed_index_skips_non_xlsx() {
+        let dir = tempfile::tempdir().unwrap();
+        let xlsx_path = dir.path().join("data.xlsx");
+        let txt_path = dir.path().join("notes.txt");
+        create_test_xlsx(&xlsx_path, vec![vec!["A", "B"]]);
+        std::fs::write(&txt_path, "not a spreadsheet").unwrap();
+        let index = SeedIndex::new(dir.path()).unwrap();
+        let files = index.get_files();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].filename, "data.xlsx");
+    }
+
+    #[test]
+    fn test_load_batch_pagination() {
+        let dir = tempfile::tempdir().unwrap();
+        let xlsx_path = dir.path().join("paged.xlsx");
+        let mut rows = vec![];
+        for i in 0..10 {
+            rows.push(vec![format!("Name {}", i), format!("RFC{}", i)]);
+        }
+        create_test_xlsx(&xlsx_path, rows);
+        let mut index = SeedIndex::new(dir.path()).unwrap();
+        let batch1 = index.load_batch(&xlsx_path, 0, 5).unwrap();
+        let batch2 = index.load_batch(&xlsx_path, 5, 5).unwrap();
+        assert_eq!(batch1.len(), 5);
+        assert_eq!(batch2.len(), 5);
+        assert_eq!(batch1[0].0, "NAME 0");
+    }
+
+    #[test]
+    fn test_load_batch_filters_empty_rows() {
+        let dir = tempfile::tempdir().unwrap();
+        let xlsx_path = dir.path().join("gaps.xlsx");
+        create_test_xlsx(&xlsx_path, vec![
+            vec!["JUAN PEREZ", "RFC1"],
+            vec!["", ""],
+            vec!["MARIA LOPEZ", "RFC2"],
+        ]);
+        let mut index = SeedIndex::new(dir.path()).unwrap();
+        let batch = index.load_batch(&xlsx_path, 0, 100).unwrap();
+        assert_eq!(batch.len(), 2);
+    }
+
+    #[test]
+    fn test_load_batch_uppercases_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let xlsx_path = dir.path().join("case.xlsx");
+        create_test_xlsx(&xlsx_path, vec![
+            vec!["juan perez", "RFC1"],
+        ]);
+        let mut index = SeedIndex::new(dir.path()).unwrap();
+        let batch = index.load_batch(&xlsx_path, 0, 100).unwrap();
+        assert_eq!(batch[0].0, "JUAN PEREZ");
+    }
+
+    #[test]
+    fn test_seed_index_empty_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = SeedIndex::new(dir.path()).unwrap();
+        assert!(index.get_files().is_empty());
+    }
+}
