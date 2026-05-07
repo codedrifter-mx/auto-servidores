@@ -18,3 +18,23 @@ pub fn recommend_settings() -> models::RecommendedSettings {
     let batch_size = if ram_gb < 4.0 { 10 } else if ram_gb < 8.0 { 15 } else { 25 };
     models::RecommendedSettings { batch_size, max_workers }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_system_info_returns_values() {
+        let info = get_system_info();
+        assert!(info.cpu_cores > 0, "cpu_cores should be positive");
+        assert!(info.ram_gb > 0.0, "ram_gb should be positive");
+        assert!(!info.os.is_empty(), "os should not be empty");
+    }
+
+    #[test]
+    fn test_recommend_settings_returns_values() {
+        let settings = recommend_settings();
+        assert!(settings.batch_size > 0, "batch_size should be positive");
+        assert!(settings.max_workers > 0, "max_workers should be positive");
+    }
+}
