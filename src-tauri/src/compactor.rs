@@ -126,3 +126,91 @@ pub struct CompactSummary {
     pub found_path: Option<String>,
     pub not_found_path: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn make_found_person(name: &str, rfc: &str, years: Vec<(u32, &str)>) -> PersonResult {
+        let comprobantes: HashMap<u32, String> = years.into_iter()
+            .map(|(y, v)| (y, v.to_string()))
+            .collect();
+        PersonResult {
+            name: name.to_string(),
+            rfc: rfc.to_string(),
+            status: "Found".to_string(),
+            comprobantes: if comprobantes.is_empty() { None } else { Some(comprobantes) },
+        }
+    }
+
+    fn make_not_found_person(name: &str, rfc: &str) -> PersonResult {
+        PersonResult {
+            name: name.to_string(),
+            rfc: rfc.to_string(),
+            status: "Not found".to_string(),
+            comprobantes: None,
+        }
+    }
+
+    #[test]
+    fn test_compact_found_writes_xlsx() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = crate::config::default_config();
+        config.output.dir = dir.path().to_string_lossy().to_string();
+        config.filters.years_to_check = vec![2025, 2026];
+        let compactor = Compactor::new(&config);
+        let found = vec![make_found_person("JUAN PEREZ", "XEXX010101000", vec![
+            (2025, "COMP001"),
+            (2026, "COMP002"),
+        ])];
+        let not_found = vec![];
+        let result = compactor.compact(&found, &not_found, "test_data").unwrap();
+        assert_eq!(result.found_count, 1);
+        assert_eq!(result.not_found_count, 0);
+        let found_path = dir.path().join("test_data_ENCONTRADOS.xlsx");
+        assert!(found_path.exists());
+    }
+
+    #[test]
+    fn test_compact_not_found_writes_xlsx() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = crate::config::default_config();
+        config.output.dir = dir.path().to_string_lossy().to_string();
+        config.filters.years_to_check = vec![2025];
+        let compactor = Compactor::new(&config);
+        let not_found = vec![make_not_found_person("MARIA LOPEZ", "XEXX020202000")];
+        let result = compactor.compact(&[], &not_found, "test_data").unwrap();
+        assert_eq!(result.found_count, 0);
+        assert_eq!(result.not_found_count, 1);
+        let not_found_path = dir.path().join("test_data_NO_ENCONTRADOS.xlsx");
+        assert!(not_found_path.exists());
+    }
+
+    #[test]
+    fn test_compact_empty_found_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = crate::config::default_config();
+        config.output.dir = dir.path().to_string_lossy().to_string();
+        config.filters.years_to_check = vec![2025];
+        let compactor = Compactor::new(&config);
+        let result = compactor.compact(&[], &[], "empty_test").unwrap();
+        assert_eq!(result.found_count, 0);
+        assert_eq!(result.not_found_count, 0);
+        assert!(result.found_path.is_none());
+        assert!(result.not_found_path.is_none());
+    }
+
+    #[test]
+    fn test_compact_creates_output_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("nested").join("output");
+        let mut config = crate::config::default_config();
+        config.output.dir = nested.to_string_lossy().to_string();
+        config.filters.years_to_check = vec![2025];
+        let compactor = Compactor::new(&config);
+        let found = vec![make_found_person("TEST", "RFC1", vec![(2025, "C1")])];
+        compactor.compact(&found, &[], "dir_test").unwrap();
+        assert!(nested.exists());
+    }
+}
