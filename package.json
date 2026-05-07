@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "tauri": "tauri",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

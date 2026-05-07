@@ -1,5 +1,4 @@
 use rusqlite::{params, Connection};
-use serde_json;
 use sha2::{Sha256, Digest};
 use std::path::Path;
 use std::sync::Mutex;

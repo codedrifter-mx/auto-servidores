@@ -67,9 +67,9 @@ impl SeedIndex {
         start: usize,
         size: usize,
     ) -> Result<Vec<(String, String)>, String> {
-        if !self.cache.contains_key(&filepath.to_path_buf()) {
+        if let std::collections::hash_map::Entry::Vacant(e) = self.cache.entry(filepath.to_path_buf()) {
             let data = Self::read_all_rows(filepath)?;
-            self.cache.insert(filepath.to_path_buf(), data);
+            e.insert(data);
         }
         let data = self.cache.get(&filepath.to_path_buf()).unwrap();
         let batch: Vec<(String, String)> = data
