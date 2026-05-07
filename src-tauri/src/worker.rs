@@ -220,3 +220,192 @@ async fn post_with_retry(
         max_retries, last_status
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::ApiCache;
+    use crate::config;
+    use crate::rate_limit::RateLimitGate;
+    use serde_json::json;
+
+    fn make_test_config(mock_url: &str) -> AppConfig {
+        let mut config = config::default_config();
+        config.api.base_url = mock_url.to_string();
+        config.api.endpoints.search = "/declaranet/consulta-servidores-publicos/buscarsp".to_string();
+        config.api.endpoints.history = "/declaranet/consulta-servidores-publicos/historico".to_string();
+        config.api.timeout = 5;
+        config.api.max_retries = 2;
+        config.api.retry_base_delay = 0.01;
+        config.rate_limit.min_interval = 0.0;
+        config.rate_limit.cooldown_base = 0.01;
+        config.rate_limit.cooldown_max = 0.1;
+        config.rate_limit.max_concurrent = 50;
+        config.filters.years_to_check = vec![2025, 2026];
+        config.filters.common_filters.tipoDeclaracion = "MODIFICACION".to_string();
+        config.filters.common_filters.institucionReceptora = "INSTITUTO MEXICANO DEL SEGURO SOCIAL".to_string();
+        config
+    }
+
+    fn make_test_cache() -> ApiCache {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test_cache.db");
+        ApiCache::new(&path, 3600, false).unwrap()
+    }
+
+    fn make_rate_gate() -> RateLimitGate {
+        RateLimitGate::new(50, 0.0, 0.01, 0.1)
+    }
+
+    #[tokio::test]
+    async fn test_process_person_found() {
+        let mut server = mockito::Server::new_async().await;
+        let search_body = json!({
+            "estatus": true,
+            "datos": [{"idUsrDecnet": "12345", "nombre": "JUAN PEREZ", "rfc": "XEXX010101000"}]
+        });
+        let history_body = json!({
+            "datos": [{
+                "anio": 2025,
+                "tipoDeclaracion": "MODIFICACION",
+                "institucionReceptora": "INSTITUTO MEXICANO DEL SEGURO SOCIAL",
+                "noComprobante": "COMP001"
+            }]
+        });
+        let search_mock = server.mock("POST", mockito::Matcher::Regex(r"^/declaranet/consulta-servidores-publicos/buscarsp.*".to_string()))
+            .with_status(200)
+            .with_body(search_body.to_string())
+            .expect(1)
+            .create();
+        let history_mock = server.mock("POST", mockito::Matcher::Regex(r"^/declaranet/consulta-servidores-publicos/historico.*".to_string()))
+            .with_status(200)
+            .with_body(history_body.to_string())
+            .expect(1)
+            .create();
+        let config = make_test_config(&server.url());
+        let client = crate::client::create_client(&config).unwrap();
+        let cache = make_test_cache();
+        let rate_gate = make_rate_gate();
+        let result = process_person("JUAN PEREZ", "XEXX010101000", &config, &cache, &client, &rate_gate).await;
+        search_mock.assert();
+        history_mock.assert();
+        assert_eq!(result.status, "Found");
+        assert!(result.comprobantes.is_some());
+        assert_eq!(result.comprobantes.unwrap().get(&2025), Some(&"COMP001".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_process_person_not_found_empty_datos() {
+        let mut server = mockito::Server::new_async().await;
+        let search_body = json!({"estatus": true, "datos": []});
+        server.mock("POST", mockito::Matcher::Any)
+            .with_status(200)
+            .with_body(search_body.to_string())
+            .expect(1)
+            .create();
+        let config = make_test_config(&server.url());
+        let client = crate::client::create_client(&config).unwrap();
+        let cache = make_test_cache();
+        let rate_gate = make_rate_gate();
+        let result = process_person("NOBODY", "XEXX990101000", &config, &cache, &client, &rate_gate).await;
+        assert_eq!(result.status, "Not found");
+    }
+
+    #[tokio::test]
+    async fn test_process_person_no_estatus() {
+        let mut server = mockito::Server::new_async().await;
+        let search_body = json!({"someField": "value"});
+        server.mock("POST", mockito::Matcher::Any)
+            .with_status(200)
+            .with_body(search_body.to_string())
+            .expect(1)
+            .create();
+        let config = make_test_config(&server.url());
+        let client = crate::client::create_client(&config).unwrap();
+        let cache = make_test_cache();
+        let rate_gate = make_rate_gate();
+        let result = process_person("NOBODY", "XEXX990101000", &config, &cache, &client, &rate_gate).await;
+        assert_eq!(result.status, "Not found");
+    }
+
+    #[tokio::test]
+    async fn test_process_person_api_error() {
+        let mut server = mockito::Server::new_async().await;
+        server.mock("POST", mockito::Matcher::Any)
+            .with_status(500)
+            .expect_at_least(1)
+            .create();
+        let config = make_test_config(&server.url());
+        let client = crate::client::create_client(&config).unwrap();
+        let cache = make_test_cache();
+        let rate_gate = make_rate_gate();
+        let result = process_person("ERROR", "XEXX990101000", &config, &cache, &client, &rate_gate).await;
+        assert_eq!(result.status, "Error");
+    }
+
+    #[tokio::test]
+    async fn test_process_person_filters_year() {
+        let mut server = mockito::Server::new_async().await;
+        let search_body = json!({
+            "estatus": true,
+            "datos": [{"idUsrDecnet": "999", "nombre": "TEST", "rfc": "XEXX010101000"}]
+        });
+        let history_body = json!({
+            "datos": [{
+                "anio": 2023,
+                "tipoDeclaracion": "MODIFICACION",
+                "institucionReceptora": "INSTITUTO MEXICANO DEL SEGURO SOCIAL",
+                "noComprobante": "OLD"
+            }]
+        });
+        server.mock("POST", mockito::Matcher::Regex(r"^/declaranet/consulta-servidores-publicos/buscarsp.*".to_string()))
+            .with_status(200)
+            .with_body(search_body.to_string())
+            .expect(1)
+            .create();
+        server.mock("POST", mockito::Matcher::Regex(r"^/declaranet/consulta-servidores-publicos/historico.*".to_string()))
+            .with_status(200)
+            .with_body(history_body.to_string())
+            .expect(1)
+            .create();
+        let config = make_test_config(&server.url());
+        let client = crate::client::create_client(&config).unwrap();
+        let cache = make_test_cache();
+        let rate_gate = make_rate_gate();
+        let result = process_person("TEST", "XEXX010101000", &config, &cache, &client, &rate_gate).await;
+        assert_eq!(result.status, "Not found");
+    }
+
+    #[tokio::test]
+    async fn test_process_person_filters_tipo() {
+        let mut server = mockito::Server::new_async().await;
+        let search_body = json!({
+            "estatus": true,
+            "datos": [{"idUsrDecnet": "999", "nombre": "TEST", "rfc": "XEXX010101000"}]
+        });
+        let history_body = json!({
+            "datos": [{
+                "anio": 2025,
+                "tipoDeclaracion": "INICIAL",
+                "institucionReceptora": "INSTITUTO MEXICANO DEL SEGURO SOCIAL",
+                "noComprobante": "WRONG"
+            }]
+        });
+        server.mock("POST", mockito::Matcher::Regex(r"^/declaranet/consulta-servidores-publicos/buscarsp.*".to_string()))
+            .with_status(200)
+            .with_body(search_body.to_string())
+            .expect(1)
+            .create();
+        server.mock("POST", mockito::Matcher::Regex(r"^/declaranet/consulta-servidores-publicos/historico.*".to_string()))
+            .with_status(200)
+            .with_body(history_body.to_string())
+            .expect(1)
+            .create();
+        let config = make_test_config(&server.url());
+        let client = crate::client::create_client(&config).unwrap();
+        let cache = make_test_cache();
+        let rate_gate = make_rate_gate();
+        let result = process_person("TEST", "XEXX010101000", &config, &cache, &client, &rate_gate).await;
+        assert_eq!(result.status, "Not found");
+    }
+}
