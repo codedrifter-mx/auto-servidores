@@ -1,13 +1,13 @@
-mod cache;
-mod client;
-mod compactor;
-mod config;
-mod models;
-mod orchestrator;
-mod rate_limit;
-mod seed_index;
-mod system_info;
-mod worker;
+pub mod cache;
+pub mod client;
+pub mod compactor;
+pub mod config;
+pub mod models;
+pub mod orchestrator;
+pub mod rate_limit;
+pub mod seed_index;
+pub mod system_info;
+pub mod worker;
 
 use models::AppConfig;
 use std::path::PathBuf;
